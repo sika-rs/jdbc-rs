@@ -1,0 +1,62 @@
+use jni::{
+    objects::{AutoLocal, JMethodID, JObject, JValueGen},
+    signature::ReturnType,
+    JNIEnv,
+};
+
+use crate::{errors::Error, util};
+
+use super::PreparedStatement;
+
+pub struct Connection<'a> {
+    inner: AutoLocal<'a, JObject<'a>>,
+    env: JNIEnv<'a>,
+    prepare_statement: JMethodID,
+    close: JMethodID,
+}
+
+impl<'a> Connection<'a> {
+    pub fn from_ref(env: &'a mut JNIEnv, datasource: JObject<'a>) -> Result<Self, Error> {
+        let datasource = AutoLocal::new(datasource, env);
+
+        let class = AutoLocal::new(env.find_class("java/sql/Connection")?, env);
+        let prepare_statement: jni::objects::JMethodID = env.get_method_id(
+            &class,
+            "prepareStatement",
+            "(Ljava/lang/String;)Ljava/sql/PreparedStatement;",
+        )?;
+
+        let close = util::get_close_method_auto(env)?;
+
+        let env = unsafe { env.unsafe_clone() };
+        Ok(Connection {
+            inner: datasource,
+            env,
+            prepare_statement,
+            close,
+        })
+    }
+
+    pub fn prepare_statement(&mut self, sql: &str) -> Result<PreparedStatement, Error> {
+        let sql: JObject = self.env.new_string(sql)?.into();
+        let statement = unsafe {
+            self.env.call_method_unchecked(
+                &self.inner,
+                self.prepare_statement,
+                ReturnType::Object,
+                &[JValueGen::Object(&sql).as_jni()],
+            )?
+        };
+        self.env.delete_local_ref(sql)?;
+        if let JValueGen::Object(statement) = statement {
+            return Ok(PreparedStatement::from_ref(&mut self.env, statement)?);
+        }
+        return Err(Error::ImpossibleError);
+    }
+}
+
+impl<'a> Drop for Connection<'a> {
+    fn drop(&mut self) {
+        util::close(&mut self.env, &self.inner, &self.close)
+    }
+}
