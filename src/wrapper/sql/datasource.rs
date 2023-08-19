@@ -6,13 +6,14 @@ use jni::{
     JNIEnv,
 };
 pub struct DataSource<'a> {
-    inner: JObject<'a>,
+    inner: AutoLocal<'a, JObject<'a>>,
     env: JNIEnv<'a>,
     get_conn: JMethodID,
 }
 
 impl<'a> DataSource<'a> {
     pub fn from_ref(env: &mut JNIEnv<'a>, datasource: JObject<'a>) -> Result<Self, Error> {
+        let datasource = AutoLocal::new(datasource, env);
         let class = AutoLocal::new(env.find_class("javax/sql/DataSource")?, env);
         let get_conn: jni::objects::JMethodID =
             env.get_method_id(&class, "getConnection", "()Ljava/sql/Connection;")?;
@@ -37,10 +38,5 @@ impl<'a> DataSource<'a> {
             "unknown",
             "java.sql.Connection",
         )));
-    }
-}
-impl<'a> Into<JObject<'a>> for DataSource<'a> {
-    fn into(self) -> JObject<'a> {
-        self.inner
     }
 }

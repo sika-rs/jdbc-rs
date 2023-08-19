@@ -9,7 +9,7 @@ use crate::{errors::Error, util};
 use super::ResultSet;
 
 pub struct PreparedStatement<'local> {
-    inner: JObject<'local>,
+    inner: AutoLocal<'local, JObject<'local>>,
     execute_query: JMethodID,
     execute_update: JMethodID,
     close: JMethodID,
@@ -18,6 +18,7 @@ pub struct PreparedStatement<'local> {
 
 impl<'local> PreparedStatement<'local> {
     pub fn from_ref(env: &'local mut JNIEnv, statement: JObject<'local>) -> Result<Self, Error> {
+        let statement = AutoLocal::new(statement, env);
         let class = AutoLocal::new(env.find_class("java/sql/PreparedStatement")?, env);
 
         let execute_query = env.get_method_id(&class, "executeQuery", "()Ljava/sql/ResultSet;")?;
@@ -69,6 +70,6 @@ impl<'local> PreparedStatement<'local> {
 
 impl<'a> Drop for PreparedStatement<'a> {
     fn drop(&mut self) {
-        util::close(&mut self.env, &self.inner, &self.close)
+        util::close(&mut self.env, &self.inner, &self.close);
     }
 }

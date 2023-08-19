@@ -8,15 +8,15 @@ use crate::{errors::Error, util};
 
 use super::PreparedStatement;
 
-pub struct Connection<'a> {
-    inner: AutoLocal<'a, JObject<'a>>,
-    env: JNIEnv<'a>,
+pub struct Connection<'local> {
+    inner: AutoLocal<'local, JObject<'local>>,
+    env: JNIEnv<'local>,
     prepare_statement: JMethodID,
     close: JMethodID,
 }
 
-impl<'a> Connection<'a> {
-    pub fn from_ref(env: &'a mut JNIEnv, datasource: JObject<'a>) -> Result<Self, Error> {
+impl<'local> Connection<'local> {
+    pub fn from_ref(env: &'local mut JNIEnv, datasource: JObject<'local>) -> Result<Self, Error> {
         let datasource = AutoLocal::new(datasource, env);
 
         let class = AutoLocal::new(env.find_class("java/sql/Connection")?, env);
@@ -38,7 +38,7 @@ impl<'a> Connection<'a> {
     }
 
     pub fn prepare_statement(&mut self, sql: &str) -> Result<PreparedStatement, Error> {
-        let sql: JObject = self.env.new_string(sql)?.into();
+        let sql: JObject<'local> = self.env.new_string(sql)?.into();
         let statement = unsafe {
             self.env.call_method_unchecked(
                 &self.inner,
@@ -55,7 +55,7 @@ impl<'a> Connection<'a> {
     }
 }
 
-impl<'a> Drop for Connection<'a> {
+impl<'local> Drop for Connection<'local> {
     fn drop(&mut self) {
         util::close(&mut self.env, &self.inner, &self.close)
     }

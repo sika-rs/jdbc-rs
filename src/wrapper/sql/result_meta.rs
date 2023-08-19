@@ -1,5 +1,5 @@
 use jni::{
-    objects::{JMethodID, JObject, JValueGen},
+    objects::{AutoLocal, JMethodID, JObject, JValueGen},
     signature::ReturnType,
     sys::jvalue,
     JNIEnv,
@@ -8,14 +8,16 @@ use jni::{
 use crate::{errors::Error, util};
 
 pub struct ResultSetMetaData<'local> {
-    inner: JObject<'local>,
+    inner: AutoLocal<'local, JObject<'local>>,
     get_column_count: JMethodID,
     get_column_name: JMethodID,
     env: JNIEnv<'local>,
 }
 
 impl<'local> ResultSetMetaData<'local> {
-    pub fn from_ref(env: &'local mut JNIEnv, statement: JObject<'local>) -> Result<Self, Error> {
+    pub fn from_ref(env: &mut JNIEnv<'local>, statement: JObject<'local>) -> Result<Self, Error> {
+        let statement = AutoLocal::new(statement, env);
+
         let class = env.find_class("java/sql/ResultSetMetaData")?;
         let get_column_count = env.get_method_id(&class, "getColumnCount", "()I")?;
 
