@@ -4,7 +4,7 @@ version = "0.0.0"
 edition = "2021"
 description = "Rust bindings to the Java Jdbc."
 license = "MIT"
-keywords = ["java", "jdbc", "mysql", "postgresql", "oracle", "sqlserver", "dm8"]
+keywords = ["jdbc", "mysql", "postgresql", "oracle", "sqlserver"]
 repository = "https://github.com/sika-rs/jdbc-rs"
 
 
