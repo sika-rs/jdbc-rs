@@ -16,7 +16,7 @@ pub struct Connection<'local> {
 }
 
 impl<'local> Connection<'local> {
-    pub fn from_ref(env: &'local mut JNIEnv, datasource: JObject<'local>) -> Result<Self, Error> {
+    pub fn from_ref(env: &mut JNIEnv<'local>, datasource: JObject<'local>) -> Result<Self, Error> {
         let datasource = AutoLocal::new(datasource, env);
 
         let class = AutoLocal::new(env.find_class("java/sql/Connection")?, env);
@@ -37,8 +37,8 @@ impl<'local> Connection<'local> {
         })
     }
 
-    pub fn prepare_statement(&mut self, sql: &str) -> Result<PreparedStatement, Error> {
-        let sql: JObject<'local> = self.env.new_string(sql)?.into();
+    pub fn prepare_statement(&mut self, sql: &str) -> Result<PreparedStatement<'local>, Error> {
+        let sql: JObject<'_> = self.env.new_string(sql)?.into();
         let statement = unsafe {
             self.env.call_method_unchecked(
                 &self.inner,

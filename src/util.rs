@@ -1,5 +1,5 @@
 use jni::{
-    objects::{AutoLocal, JMethodID, JObject, JString, JValueGen},
+    objects::{AutoLocal, JMethodID, JObject, JValueGen},
     signature::ReturnType,
     JNIEnv,
 };
@@ -41,16 +41,9 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
     env.delete_local_ref(obj_class)?;
     env.delete_local_ref(class)?;
     match name {
-        JValueGen::Object(name) => get_string(env, name),
+        JValueGen::Object(name) => cast::obj_cast_string(env, name),
         _ => Err(Error::ImpossibleError),
     }
-}
-
-pub fn get_string<'a>(env: &mut JNIEnv<'a>, obj: JObject<'a>) -> Result<String, Error> {
-    let name = JString::from(obj);
-    let name_str = env.get_string(&name)?;
-    let string = String::from(name_str);
-    Ok(string)
 }
 
 pub mod cast {
@@ -93,6 +86,7 @@ pub mod cast {
         let name = JString::from(obj);
         let name_str = env.get_string(&name)?;
         let string = String::from(name_str);
+        env.delete_local_ref(name)?;
         Ok(string)
     }
 }

@@ -26,7 +26,7 @@ pub struct ResultSet<'local> {
 impl<'local> ResultSet<'local> {
     pub fn from_ref(env: &'local mut JNIEnv, statement: JObject<'local>) -> Result<Self, Error> {
         let statement = AutoLocal::new(statement, env);
-        let class = env.find_class("java/sql/ResultSet")?;
+        let class = AutoLocal::new(env.find_class("java/sql/ResultSet")?, &env);
         let get_meta_data =
             env.get_method_id(&class, "getMetaData", "()Ljava/sql/ResultSetMetaData;")?;
         let get_row = env.get_method_id(&class, "getRow", "()I")?;

@@ -16,53 +16,51 @@ fn test() -> Result<(), jdbc::errors::Error> {
     props.set_property("maximumPoolSize", "1000")?;
     props.set_property("driverClassName", "org.sqlite.JDBC")?;
     let config = HikariConfig::new(&mut env, props)?;
+
     let datasource = HikariDataSource::new(&mut env, config)?;
 
     let mut datasource = DataSource::from_ref(&mut env, datasource.into())?;
-
     let mut conn = datasource.get_connection()?;
 
-    {
-        conn.prepare_statement("create table test(id primary key,name VARCHAR(255));")?
-            .execute_update()?;
-    }
-    {
-        let row = conn
-            .prepare_statement("insert into test(id,name) values(1,'Tom');")?
-            .execute_update()?;
+    let data = ["Tom", "Jerry", "Spike"];
+
+    // Create Table
+    conn.prepare_statement("create table test(id primary key,name VARCHAR(255));")?
+        .execute_update()?;
+
+    // Insert Data
+    for i in 0..data.len() {
+        let mut statement = conn.prepare_statement("insert into test(id,name) values(?,?);")?;
+        statement.set_int(1, i as i32 + 1)?;
+        statement.set_string(2, data[i])?;
+        let row = statement.execute_update()?;
         assert_eq!(row, 1);
-        let row = conn
-            .prepare_statement("insert into test(id,name) values(2,'Jerry');")?
-            .execute_update()?;
-        assert_eq!(row, 1);
     }
-    {
-        let mut query = conn.prepare_statement("select id,name from test")?;
-        let mut result = query.execute_query()?;
-        let mut meta_data = result.get_meta_data()?;
 
-        let columns = meta_data.get_columns_name()?;
-        assert_eq!(columns, vec!["id", "name"]);
+    // Read Data
+    let mut statement = conn.prepare_statement("select id,name from test")?;
+    let mut result = statement.execute_query()?;
+    let mut meta_data = result.get_meta_data()?;
 
-        // Row 1
+    let columns = meta_data.get_columns_name()?;
+    assert_eq!(columns, vec!["id", "name"]);
+
+    for i in 0..data.len() {
+        let row = i as i32 + 1;
+        let id = row;
+        let name = data[i];
         assert_eq!(result.next()?, true);
-        assert_eq!(result.get_row()?, 1);
-        assert_eq!(result.get_int(1)?, 1);
-        assert_eq!(result.get_long(1)?, 1_i64);
-        assert_eq!(result.get_float(1)?, 1_f32);
-        assert_eq!(result.get_int_by_label("id")?, 1);
-        assert_eq!(result.get_string(2)?, "Tom");
-        assert_eq!(result.get_string_by_label("name")?, "Tom");
-
-        // Row 2
-        assert_eq!(result.next()?, true);
-        assert_eq!(result.get_row()?, 2);
-        assert_eq!(result.get_int(1)?, 2);
-        assert_eq!(result.get_long(1)?, 2_i64);
-        assert_eq!(result.get_float(1)?, 2_f32);
-        assert_eq!(result.get_int_by_label("id")?, 2);
-        assert_eq!(result.get_string(2)?, "Jerry");
-        assert_eq!(result.get_string_by_label("name")?, "Jerry");
+        // Get Row Number
+        assert_eq!(result.get_row()?, row);
+        // get column 1 by column index
+        assert_eq!(result.get_int(1)?, id);
+        assert_eq!(result.get_long(1)?, id as i64);
+        assert_eq!(result.get_float(1)?, id as f32);
+        // get column 1 by column label
+        assert_eq!(result.get_int_by_label("id")?, id);
+        // get column 2
+        assert_eq!(result.get_string(2)?, name);
+        assert_eq!(result.get_string_by_label("name")?, name);
     }
 
     Ok(())

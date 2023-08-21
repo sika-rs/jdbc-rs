@@ -5,14 +5,14 @@ use jni::{
     signature::ReturnType,
     JNIEnv,
 };
-pub struct DataSource<'a> {
-    inner: AutoLocal<'a, JObject<'a>>,
-    env: JNIEnv<'a>,
+pub struct DataSource<'local> {
+    inner: AutoLocal<'local, JObject<'local>>,
+    env: JNIEnv<'local>,
     get_conn: JMethodID,
 }
 
-impl<'a> DataSource<'a> {
-    pub fn from_ref(env: &mut JNIEnv<'a>, datasource: JObject<'a>) -> Result<Self, Error> {
+impl<'local> DataSource<'local> {
+    pub fn from_ref(env: &mut JNIEnv<'local>, datasource: JObject<'local>) -> Result<Self, Error> {
         let datasource = AutoLocal::new(datasource, env);
         let class = AutoLocal::new(env.find_class("javax/sql/DataSource")?, env);
         let get_conn: jni::objects::JMethodID =
@@ -25,7 +25,7 @@ impl<'a> DataSource<'a> {
         })
     }
 
-    pub fn get_connection(&mut self) -> Result<Connection, Error> {
+    pub fn get_connection(&mut self) -> Result<Connection<'local>, Error> {
         let conn = unsafe {
             self.env
                 .call_method_unchecked(&self.inner, self.get_conn, ReturnType::Object, &[])

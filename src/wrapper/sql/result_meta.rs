@@ -18,7 +18,7 @@ impl<'local> ResultSetMetaData<'local> {
     pub fn from_ref(env: &mut JNIEnv<'local>, statement: JObject<'local>) -> Result<Self, Error> {
         let statement = AutoLocal::new(statement, env);
 
-        let class = env.find_class("java/sql/ResultSetMetaData")?;
+        let class = AutoLocal::new(env.find_class("java/sql/ResultSetMetaData")?, &env);
         let get_column_count = env.get_method_id(&class, "getColumnCount", "()I")?;
 
         let get_column_name =
@@ -47,7 +47,7 @@ impl<'local> ResultSetMetaData<'local> {
             )?
         };
         if let JValueGen::Object(name) = name {
-            return util::get_string(&mut self.env, name);
+            return util::cast::obj_cast_string(&mut self.env, name);
         }
         return Err(Error::ImpossibleError);
     }
