@@ -1,5 +1,5 @@
 use jni::{InitArgsBuilder, JNIVersion, JavaVM};
-use std::{fs, path::Path};
+use std::fs;
 pub fn test_vm() -> JavaVM {
     let libs = format!("-Djava.class.path={}", libs().join(";"));
 
@@ -16,8 +16,9 @@ pub fn test_vm() -> JavaVM {
 }
 
 fn libs() -> Vec<String> {
+    let out_dir = concat!(env!("OUT_DIR"), "/libs");
     let mut libs = Vec::new();
-    if let Ok(dir) = fs::read_dir("libs") {
+    if let Ok(dir) = fs::read_dir(out_dir) {
         for lib in dir {
             if let Ok(lib) = lib {
                 let path = lib.path();
