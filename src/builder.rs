@@ -25,9 +25,7 @@ pub struct Builder {
 }
 
 fn hikari(vm: &JavaVM, properties: &HashMap<String, String>) -> Result<GlobalRef, InitError> {
-    let mut env = vm
-        .attach_current_thread()
-        .unwrap_or_else(|e| panic!("{:#?}", e));
+    let mut env = vm.attach_current_thread()?;
     let mut props = Properties::new(&mut env)?;
     props.set_property("maximumPoolSize", "10")?;
     for (key, value) in properties {
