@@ -1,6 +1,6 @@
 [package]
 name = "jdbc"
-version = "0.0.0"
+version = "0.1.0"
 edition = "2021"
 description = "Rust bindings to the Java Jdbc."
 license = "MIT"
@@ -13,3 +13,7 @@ repository = "https://github.com/sika-rs/jdbc-rs"
 [dependencies]
 log = "0.4.20"
 jni = { version = "0.21.1", features = ["invocation"] }
+
+[features]
+default = ["hikari"]
+hikari = []

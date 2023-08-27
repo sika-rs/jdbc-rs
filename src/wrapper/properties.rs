@@ -1,10 +1,11 @@
 use jni::{
+    errors::Error,
     objects::{AutoLocal, JMethodID, JObject, JValueGen},
     signature::ReturnType,
     JNIEnv,
 };
 
-use crate::{errors::Error, util};
+use crate::util;
 pub struct Properties<'a> {
     inner: JObject<'a>,
     env: JNIEnv<'a>,

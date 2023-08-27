@@ -1,11 +1,10 @@
 use jni::{
-    objects::{AutoLocal, JMethodID, JObject, JValueGen},
+    errors::Error,
+    objects::{JObject, JValueGen},
     signature::ReturnType,
     JNIEnv,
 };
 use log::error;
-
-use crate::errors::Error;
 
 #[inline(always)]
 pub fn delete_value<'a>(env: &mut JNIEnv<'a>, val: JValueGen<JObject<'_>>) -> Result<(), Error> {
@@ -16,18 +15,18 @@ pub fn delete_value<'a>(env: &mut JNIEnv<'a>, val: JValueGen<JObject<'_>>) -> Re
 }
 
 #[inline(always)]
-pub fn get_close_method_auto<'a>(env: &mut JNIEnv<'a>) -> Result<JMethodID, Error> {
-    let closeable = AutoLocal::new(env.find_class("java/lang/AutoCloseable")?, env);
-    let close: jni::objects::JMethodID = env.get_method_id(&closeable, "close", "()V")?;
-    Ok(close)
-}
+pub fn auto_close<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<(), Error> {
+    let autoclose = env.find_class("java/lang/AutoCloseable")?;
+    if !env.is_instance_of(obj, &autoclose)? {
+        return Ok(());
+    }
+    let method = env.get_method_id(autoclose, "close", "()V")?;
 
-#[inline(always)]
-pub fn close<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>, method: &JMethodID) {
     let data = unsafe { env.call_method_unchecked(obj, method, ReturnType::Object, &[]) };
     if let Err(err) = data {
         error!("Resource closing failed. {}", err);
     }
+    Ok(())
 }
 
 #[inline(always)]
@@ -42,17 +41,33 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
     env.delete_local_ref(class)?;
     match name {
         JValueGen::Object(name) => cast::obj_cast_string(env, name),
-        _ => Err(Error::ImpossibleError),
+        _ => Err(Error::JavaException),
     }
 }
 
 pub mod cast {
+    use jni::errors::Error;
+    use jni::sys::{jvalue, JNI_TRUE};
     use jni::{
         objects::{JObject, JString, JValueGen},
         JNIEnv,
     };
 
-    use crate::errors::Error;
+    pub fn bool_to_jvalue(value: bool) -> jvalue {
+        let value = match value {
+            true => jni::sys::JNI_TRUE,
+            false => jni::sys::JNI_FALSE,
+        };
+        jvalue { z: value }
+    }
+
+    pub fn jvalue_to_bool(value: jvalue) -> bool {
+        unsafe {
+            match value {
+                jvalue { z } => z == jni::sys::JNI_TRUE,
+            }
+        }
+    }
 
     pub fn value_cast_string<'a>(
         env: &mut JNIEnv<'a>,
@@ -61,10 +76,13 @@ pub mod cast {
         if let JValueGen::Object(obj) = obj {
             return obj_cast_string(env, obj);
         }
-        Err(Error::WrongType)
+        Err(Error::JavaException)
     }
 
     use crate::value_cast;
+    value_cast!(JValueGen::Char, u16, value_cast_char);
+    value_cast!(JValueGen::Bool, bool, value_cast_bool);
+    value_cast!(JValueGen::Short, i16, value_cast_i16);
     value_cast!(JValueGen::Int, i32, value_cast_i32);
     value_cast!(JValueGen::Long, i64, value_cast_i64);
     value_cast!(JValueGen::Float, f32, value_cast_f32);
@@ -72,12 +90,20 @@ pub mod cast {
 
     #[macro_export]
     macro_rules! value_cast {
+        (JValueGen::Bool,$return_type:tt,$fun_name:ident) => {
+            pub fn $fun_name<'a>(obj: JValueGen<JObject<'a>>) -> Result<$return_type, Error> {
+                if let JValueGen::Bool(val) = obj {
+                    return Ok(val == JNI_TRUE);
+                }
+                Err(Error::JavaException)
+            }
+        };
         ($type:path,$return_type:tt,$fun_name:ident) => {
             pub fn $fun_name<'a>(obj: JValueGen<JObject<'a>>) -> Result<$return_type, Error> {
                 if let $type(val) = obj {
                     return Ok(val);
                 }
-                Err(Error::WrongType)
+                Err(Error::JavaException)
             }
         };
     }
