@@ -1,14 +1,11 @@
+use jdbc::Datasource;
+
 mod util;
 
 #[test]
 fn test() -> Result<(), jdbc::errors::Error> {
     let ds = util::sqlite();
     let conn = ds.get_connection()?;
-
-    let statement = conn.prepare_statement("select ?")?.set_string(1, "value")?;
-    let result = statement.execute_query()?;
-    assert_eq!(result.next()?, true);
-    assert_eq!(result.get_string(1)?, "value");
 
     let statement = conn.prepare_statement("select ?")?.set_short(1, 1)?;
     let result = statement.execute_query()?;
@@ -41,6 +38,43 @@ fn test() -> Result<(), jdbc::errors::Error> {
     let result = statement.execute_query()?;
     assert_eq!(result.next()?, true);
     assert_eq!(result.get_boolean(1)?, true);
+
+    test_null(&ds)?;
+    Ok(())
+}
+
+fn test_null(ds: &Datasource) -> Result<(), jdbc::errors::Error> {
+    let conn = ds.get_connection()?;
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_short(1)?, 0);
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_int(1)?, 0);
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_long(1)?, 0);
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_float(1)?, 0.0);
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_double(1)?, 0.0);
+
+    let statement = conn.prepare_statement("select NULL")?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_boolean(1)?, false);
 
     Ok(())
 }
