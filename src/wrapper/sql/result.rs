@@ -21,6 +21,7 @@ pub struct ResultSet<'local> {
     get_float: (JMethodID, JMethodID),
     get_double: (JMethodID, JMethodID),
     get_boolean: (JMethodID, JMethodID),
+    get_date: (JMethodID, JMethodID),
     env: JNIEnv<'local>,
     conn: &'local Connection<'local>,
 }
@@ -66,6 +67,10 @@ impl<'local> ResultSet<'local> {
         let get_boolean_by_label =
             env.get_method_id(&class, "getBoolean", "(Ljava/lang/String;)Z")?;
 
+        let get_date = env.get_method_id(&class, "getDate", "(I)Ljava/sql/Date;")?;
+        let get_date_by_label =
+            env.get_method_id(&class, "getDate", "(Ljava/lang/String;)Ljava/sql/Date;")?;
+
         Ok(ResultSet {
             inner: statement,
             get_meta_data,
@@ -78,6 +83,7 @@ impl<'local> ResultSet<'local> {
             get_float: (get_float, get_float_by_label),
             get_double: (get_double, get_double_by_label),
             get_boolean: (get_boolean, get_boolean_by_label),
+            get_date: (get_date, get_date_by_label),
             env,
             conn,
         })
@@ -182,6 +188,67 @@ impl<'local> ResultSet<'local> {
         let method = &self.get_boolean.1;
         let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Boolean))?;
         return util::cast::value_cast_bool(value).map_err(Error::from);
+    }
+
+    pub fn get_timestamp_millis(&self, index: i32) -> Result<i64, Error> {
+        let method = &self.get_date.0;
+        let value = self.use_index(method, index, ReturnType::Object)?;
+        let mut env = unsafe { self.conn.env() };
+        return util::cast::value_cast_timestamp_millis(&mut env, value).map_err(Error::from);
+    }
+    pub fn get_timestamp_millis_by_label(&self, label: &str) -> Result<i64, Error> {
+        let method = &self.get_date.1;
+        let value = self.use_label(method, label, ReturnType::Object)?;
+        let mut env = unsafe { self.conn.env() };
+        return util::cast::value_cast_timestamp_millis(&mut env, value).map_err(Error::from);
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn get_local_time(&self, index: i32) -> Result<chrono::DateTime<chrono::Local>, Error> {
+        use chrono::{DateTime, Local, TimeZone};
+        let timestamp = self.get_timestamp_millis(index)?;
+        let datetime: DateTime<Local> = Local
+            .timestamp_millis_opt(timestamp)
+            .earliest()
+            .ok_or(Error::ImpossibleError)?;
+        Ok(datetime)
+    }
+    #[cfg(feature = "chrono")]
+    pub fn get_local_time_by_label(
+        &self,
+        label: &str,
+    ) -> Result<chrono::DateTime<chrono::Local>, Error> {
+        use chrono::{DateTime, Local, TimeZone};
+        let timestamp = self.get_timestamp_millis_by_label(label)?;
+        let datetime: DateTime<Local> = Local
+            .timestamp_millis_opt(timestamp)
+            .earliest()
+            .ok_or(Error::ImpossibleError)?;
+        Ok(datetime)
+    }
+
+    #[cfg(feature = "chrono")]
+    pub fn get_utc_time(&self, index: i32) -> Result<chrono::DateTime<chrono::Utc>, Error> {
+        use chrono::{DateTime, TimeZone, Utc};
+        let timestamp = self.get_timestamp_millis(index)?;
+        let datetime: DateTime<Utc> = Utc
+            .timestamp_millis_opt(timestamp)
+            .earliest()
+            .ok_or(Error::ImpossibleError)?;
+        Ok(datetime)
+    }
+    #[cfg(feature = "chrono")]
+    pub fn get_utc_time_by_label(
+        &self,
+        label: &str,
+    ) -> Result<chrono::DateTime<chrono::Utc>, Error> {
+        use chrono::{DateTime, TimeZone, Utc};
+        let timestamp = self.get_timestamp_millis_by_label(label)?;
+        let datetime: DateTime<Utc> = Utc
+            .timestamp_millis_opt(timestamp)
+            .earliest()
+            .ok_or(Error::ImpossibleError)?;
+        Ok(datetime)
     }
 
     fn use_index(

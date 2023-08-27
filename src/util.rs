@@ -47,6 +47,8 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
 
 pub mod cast {
     use jni::errors::Error;
+    use jni::objects::AutoLocal;
+    use jni::signature::{Primitive, ReturnType};
     use jni::sys::{jvalue, JNI_TRUE};
     use jni::{
         objects::{JObject, JString, JValueGen},
@@ -74,9 +76,36 @@ pub mod cast {
         obj: JValueGen<JObject<'a>>,
     ) -> Result<String, Error> {
         if let JValueGen::Object(obj) = obj {
+            if obj.is_null() {
+                return Err(Error::NullPtr("java.lang.NullPointerException"));
+            }
             return obj_cast_string(env, obj);
         }
         Err(Error::JavaException)
+    }
+
+    pub fn value_cast_timestamp_millis<'a>(
+        env: &mut JNIEnv<'a>,
+        obj: JValueGen<JObject<'a>>,
+    ) -> Result<i64, Error> {
+        if let JValueGen::Object(obj) = obj {
+            if obj.is_null() {
+                return Err(Error::NullPtr("java.lang.NullPointerException"));
+            }
+            let class = AutoLocal::new(env.find_class("java/util/Date")?, &env);
+            let method = env.get_method_id(&class, "getTime", "()J")?;
+            unsafe {
+                let value = env.call_method_unchecked(
+                    &obj,
+                    method,
+                    ReturnType::Primitive(Primitive::Long),
+                    &[],
+                )?;
+                env.delete_local_ref(obj)?;
+                return value_cast_i64(value);
+            }
+        }
+        return Err(Error::JavaException);
     }
 
     use crate::value_cast;

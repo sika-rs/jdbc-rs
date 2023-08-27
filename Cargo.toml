@@ -13,7 +13,12 @@ repository = "https://github.com/sika-rs/jdbc-rs"
 [dependencies]
 log = "0.4.20"
 jni = { version = "0.21.1", features = ["invocation"] }
+chrono = "0.4.26"
+
+[dev-dependencies]
+chrono = "0.4.26"
 
 [features]
 default = ["hikari"]
 hikari = []
+chrono = []

@@ -20,6 +20,7 @@ pub fn vm() -> JavaVM {
 
     let vm = JvmBuilder::new()
         .classpath(libs)
+        .vm_option("-Duser.timezone=UTC")
         .build()
         .expect("init jvm error.");
     vm
