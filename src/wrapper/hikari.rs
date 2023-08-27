@@ -1,6 +1,7 @@
 use super::properties::Properties;
-use crate::errors::Error;
+
 use jni::{
+    errors::Error,
     objects::{JObject, JValueGen},
     JNIEnv,
 };
