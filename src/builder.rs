@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 pub use jni::JNIVersion;
 use jni::{
@@ -19,13 +19,9 @@ type InitFn =
     Box<dyn Fn(&JavaVM, &HashMap<String, String>) -> Result<GlobalRef, InitError> + 'static>;
 
 pub struct Builder {
-    java_version: JNIVersion,
-    classpath: String,
-    xmx: u32,
-    xms: u32,
-    vm_options: Vec<String>,
     properties: HashMap<String, String>,
     init: InitFn,
+    vm: Option<Arc<JavaVM>>,
 }
 
 fn hikari(vm: &JavaVM, properties: &HashMap<String, String>) -> Result<GlobalRef, InitError> {
@@ -48,23 +44,14 @@ fn hikari(vm: &JavaVM, properties: &HashMap<String, String>) -> Result<GlobalRef
 impl Builder {
     pub fn new() -> Self {
         Builder {
-            java_version: JNIVersion::V8,
-            classpath: String::from("./libs/"),
-            xmx: 72,
-            xms: 72,
-            vm_options: Vec::new(),
             properties: HashMap::new(),
             init: Box::new(hikari),
+            vm: None,
         }
     }
 
-    pub fn classpath(mut self, classpath: &str) -> Self {
-        self.classpath = classpath.to_owned();
-        self
-    }
-
-    pub fn vm_option(mut self, option: &str) -> Self {
-        self.vm_options.push(option.to_owned());
+    pub fn vm(mut self, vm: Arc<JavaVM>) -> Self {
+        self.vm = Some(vm);
         self
     }
 
@@ -97,28 +84,80 @@ impl Builder {
     }
 
     pub fn build(self) -> Result<Datasource, InitError> {
+        let vm = {
+            if let Some(vm) = self.vm {
+                vm
+            } else {
+                Arc::new(JvmBuilder::new().build()?)
+            }
+        };
+        let datasource = (*self.init)(&vm, &self.properties)?;
+        Ok(Datasource::new(vm, datasource))
+    }
+}
+
+pub struct JvmBuilder {
+    version: JNIVersion,
+    classpath: String,
+    xmx: u32,
+    xms: u32,
+    vm_options: Vec<String>,
+}
+
+impl JvmBuilder {
+    pub fn version(mut self, version: JNIVersion) -> Self {
+        self.version = version;
+        self
+    }
+
+    pub fn xmx_mb(mut self, xmx: u32) -> Self {
+        self.xmx = xmx;
+        self
+    }
+
+    pub fn xms_mb(mut self, xms: u32) -> Self {
+        self.xms = xms;
+        self
+    }
+
+    pub fn classpath(mut self, classpath: &str) -> Self {
+        self.classpath = classpath.to_owned();
+        self
+    }
+
+    pub fn vm_option(mut self, option: &str) -> Self {
+        self.vm_options.push(option.to_owned());
+        self
+    }
+
+    pub fn new() -> Self {
+        JvmBuilder {
+            version: JNIVersion::V8,
+            classpath: String::from("./libs/"),
+            xmx: 72,
+            xms: 72,
+            vm_options: Vec::new(),
+        }
+    }
+
+    pub fn build(self) -> Result<JavaVM, InitError> {
         let mut vm_builder = InitArgsBuilder::new()
-            .version(self.java_version)
+            .version(self.version)
             .option(format!("-Xmx{}m", self.xmx))
             .option(format!("-Xms{}m", self.xms));
-
         let libs = libs(self.classpath.as_str());
         if libs.len() > 0 {
             let option = format!("-Djava.class.path={}", libs.join(";"));
             vm_builder = vm_builder.option(option);
         }
-
         for option in self.vm_options {
             vm_builder = vm_builder.option(option)
         }
-
         let jvm_args = vm_builder.build()?;
 
         let jvm = JavaVM::new(jvm_args)?;
 
-        let datasource = (*self.init)(&jvm, &self.properties)?;
-
-        Ok(Datasource::new(jvm, datasource))
+        Ok(jvm)
     }
 }
 

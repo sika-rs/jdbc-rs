@@ -20,11 +20,8 @@ pub struct Datasource {
 pub use wrapper::sql::Connection;
 
 impl Datasource {
-    pub fn new(vm: JavaVM, inner: GlobalRef) -> Self {
-        Datasource {
-            vm: Arc::new(vm),
-            inner,
-        }
+    pub fn new(vm: Arc<JavaVM>, inner: GlobalRef) -> Self {
+        Datasource { vm, inner }
     }
 
     pub fn get_connection(&self) -> Result<sql::Connection, Error> {
