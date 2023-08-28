@@ -17,8 +17,8 @@ chrono = "0.4.26"
 
 [dev-dependencies]
 chrono = "0.4.26"
+lazy_static = "1.4.0"
 
 [features]
-default = ["hikari"]
-hikari = []
+default = []
 chrono = []

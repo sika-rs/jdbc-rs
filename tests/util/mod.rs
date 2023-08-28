@@ -5,10 +5,9 @@ use jdbc::{Builder, Datasource};
 use jni::JavaVM;
 
 #[allow(dead_code)]
-#[cfg(feature = "hikari")]
 pub fn sqlite() -> Datasource {
     Builder::new()
-        .vm(Arc::new(vm()))
+        .vm(VM.clone())
         .jdbc_url("jdbc:sqlite::memory:")
         .build()
         .expect("init datasource error.")
@@ -21,7 +20,12 @@ pub fn vm() -> JavaVM {
     let vm = JvmBuilder::new()
         .classpath(libs)
         .vm_option("-Duser.timezone=UTC")
+        .xmx_mb(16)
         .build()
         .expect("init jvm error.");
     vm
+}
+
+lazy_static! {
+    static ref VM: Arc<JavaVM> = Arc::new(vm());
 }

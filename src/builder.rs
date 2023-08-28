@@ -15,19 +15,24 @@ use crate::{
     Datasource,
 };
 
-type InitFn =
+type FactoryFn =
     Box<dyn Fn(&JavaVM, &HashMap<String, String>) -> Result<GlobalRef, InitError> + 'static>;
 
 pub struct Builder {
     properties: HashMap<String, String>,
-    init: InitFn,
+    pool_type: PoolType,
+    factory: Option<FactoryFn>,
     vm: Option<Arc<JavaVM>>,
+}
+
+pub enum PoolType {
+    HikariCP,
+    Custom,
 }
 
 fn hikari(vm: &JavaVM, properties: &HashMap<String, String>) -> Result<GlobalRef, InitError> {
     let mut env = vm.attach_current_thread()?;
     let mut props = Properties::new(&mut env)?;
-    props.set_property("maximumPoolSize", "10")?;
     for (key, value) in properties {
         props.set_property(key.as_str(), value.as_str())?;
     }
@@ -43,9 +48,20 @@ impl Builder {
     pub fn new() -> Self {
         Builder {
             properties: HashMap::new(),
-            init: Box::new(hikari),
+            pool_type: PoolType::HikariCP,
+            factory: None,
             vm: None,
         }
+    }
+
+    pub fn pool_type(mut self, pool_type: PoolType) -> Self {
+        self.pool_type = pool_type;
+        self
+    }
+
+    pub fn factory(mut self, factory: FactoryFn) -> Self {
+        self.factory = Some(factory);
+        self
     }
 
     pub fn vm(mut self, vm: Arc<JavaVM>) -> Self {
@@ -89,9 +105,35 @@ impl Builder {
                 Arc::new(JvmBuilder::new().build()?)
             }
         };
-        let datasource = (*self.init)(&vm, &self.properties)?;
+
+        let datasource = {
+            match self.pool_type {
+                PoolType::HikariCP => hikari(&vm, &self.properties),
+                PoolType::Custom => {
+                    if let Some(factory) = self.factory {
+                        (*factory)(&vm, &self.properties)
+                    } else {
+                        Err(InitError::NoFactory)
+                    }
+                }
+            }
+        }?;
+        {
+            check_datasource(&vm, &datasource)?;
+        }
         Ok(Datasource::new(vm, datasource))
     }
+}
+
+fn check_datasource(vm: &Arc<JavaVM>, datasource: &GlobalRef) -> Result<(), InitError> {
+    let mut env = vm.attach_current_thread()?;
+    let class = env.find_class("javax/sql/DataSource")?;
+    let object = &*datasource;
+    let is_ds = env.is_instance_of(object, class)?;
+    if !is_ds {
+        return Err(InitError::IsNotDatasource);
+    }
+    Ok(())
 }
 
 pub struct JvmBuilder {
@@ -109,11 +151,17 @@ impl JvmBuilder {
     }
 
     pub fn xmx_mb(mut self, xmx: u32) -> Self {
+        if self.xms > xmx {
+            self.xms = xmx;
+        }
         self.xmx = xmx;
         self
     }
 
     pub fn xms_mb(mut self, xms: u32) -> Self {
+        if xms > self.xmx {
+            self.xmx = xms;
+        }
         self.xms = xms;
         self
     }

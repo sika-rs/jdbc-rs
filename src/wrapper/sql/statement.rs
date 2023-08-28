@@ -137,7 +137,6 @@ impl<'local> PreparedStatement<'local> {
 
 impl<'local> Drop for PreparedStatement<'local> {
     fn drop(&mut self) {
-     
         let _ = util::auto_close(&mut self.env, &self.inner);
     }
 }
