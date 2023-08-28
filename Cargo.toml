@@ -6,6 +6,7 @@ description = "Rust bindings to the Java Jdbc."
 license = "MIT"
 keywords = ["jdbc", "mysql", "postgresql", "oracle", "sqlserver"]
 repository = "https://github.com/sika-rs/jdbc-rs"
+readme = "README.md"
 
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
