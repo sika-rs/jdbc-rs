@@ -29,4 +29,6 @@ pub fn test() -> Result<(), jdbc::errors::Error> {
     Ok(())
 }
 
+#[macro_use]
+extern crate lazy_static;
 mod util;

@@ -1,6 +1,7 @@
+#[macro_use]
+extern crate lazy_static;
 mod util;
 
-#[cfg(feature = "hikari")]
 #[test]
 fn test() -> Result<(), jdbc::errors::Error> {
     let datasource = util::sqlite();
@@ -38,14 +39,16 @@ fn test() -> Result<(), jdbc::errors::Error> {
         // Get Row Number
         assert_eq!(result.get_row()?, row);
         // get column 1 by column index
-        assert_eq!(result.get_int(1)?, id);
-        assert_eq!(result.get_long(1)?, id as i64);
-        assert_eq!(result.get_float(1)?, id as f32);
+        assert_eq!(result.get_int(1)?, Some(id));
+        assert_eq!(result.get_long(1)?, Some(id as i64));
+        assert_eq!(result.get_float(1)?, Some(id as f32));
+        assert_eq!(result.was_null()?, false);
         // get column 1 by column label
-        assert_eq!(result.get_int_by_label("id")?, id);
+        assert_eq!(result.get_int_by_label("id")?, Some(id));
         // get column 2
-        assert_eq!(result.get_string(2)?, name);
-        assert_eq!(result.get_string_by_label("name")?, name);
+        assert_eq!(result.get_string(2)?, Some(name.into()));
+        assert_eq!(result.get_string_by_label("name")?, Some(name.into()));
+        assert_eq!(result.was_null()?, false);
     }
 
     Ok(())

@@ -14,6 +14,7 @@ pub struct ResultSet<'local> {
     get_meta_data: JMethodID,
     get_row: JMethodID,
     next: JMethodID,
+    was_null: JMethodID,
     get_string: (JMethodID, JMethodID),
     get_short: (JMethodID, JMethodID),
     get_int: (JMethodID, JMethodID),
@@ -39,6 +40,8 @@ impl<'local> ResultSet<'local> {
             env.get_method_id(&class, "getMetaData", "()Ljava/sql/ResultSetMetaData;")?;
         let get_row = env.get_method_id(&class, "getRow", "()I")?;
         let next = env.get_method_id(&class, "next", "()Z")?;
+
+        let was_null = env.get_method_id(&class, "wasNull", "()Z")?;
 
         let get_string = env.get_method_id(&class, "getString", "(I)Ljava/lang/String;")?;
         let get_string_by_label = env.get_method_id(
@@ -76,6 +79,7 @@ impl<'local> ResultSet<'local> {
             get_meta_data,
             get_row,
             next,
+            was_null,
             get_string: (get_string, get_string_by_label),
             get_short: (get_short, get_short_by_label),
             get_int: (get_int, get_int_by_label),
@@ -110,168 +114,247 @@ impl<'local> ResultSet<'local> {
         return util::call::get_bool(&mut env, &self.inner, &self.next);
     }
 
-    pub fn get_string(&self, index: i32) -> Result<String, Error> {
+    fn was_null_inner<'a>(&self, env: &'a mut JNIEnv<'local>) -> Result<bool, Error> {
+        let value = util::call::get_bool(env, &self.inner, &self.was_null)?;
+        Ok(value)
+    }
+
+    pub fn was_null<'a>(&self) -> Result<bool, Error> {
+        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+        let value = util::call::get_bool(&mut env, &self.inner, &self.was_null)?;
+        Ok(value)
+    }
+
+    pub fn get_string(&self, index: i32) -> Result<Option<String>, Error> {
         let method = &self.get_string.0;
-        let mut env = unsafe { self.conn.env() };
-        let value = self.use_index(method, index, ReturnType::Object)?;
-        return util::cast::value_cast_string(&mut env, value).map_err(Error::from);
-    }
-    pub fn get_string_by_label(&self, label: &str) -> Result<String, Error> {
-        let mut env = unsafe { self.conn.env() };
-        let value = self.use_label(&self.get_string.1, label, ReturnType::Object)?;
-        return util::cast::value_cast_string(&mut env, value).map_err(Error::from);
+        self.use_index(method, index, ReturnType::Object, |env, value| {
+            return util::cast::value_cast_string(env, value).map_err(Error::from);
+        })
     }
 
-    pub fn get_short(&self, index: i32) -> Result<i16, Error> {
+    pub fn get_string_by_label(&self, label: &str) -> Result<Option<String>, Error> {
+        let method = &self.get_string.1;
+        self.use_label(method, label, ReturnType::Object, |env, value| {
+            return util::cast::value_cast_string(env, value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_short(&self, index: i32) -> Result<Option<i16>, Error> {
         let method = &self.get_short.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Short))?;
-        return util::cast::value_cast_i16(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Short);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i16(value).map_err(Error::from);
+        })
     }
-    pub fn get_short_by_label(&self, label: &str) -> Result<i16, Error> {
+    pub fn get_short_by_label(&self, label: &str) -> Result<Option<i16>, Error> {
         let method = &self.get_short.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Short))?;
-        return util::cast::value_cast_i16(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Short);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i16(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_int(&self, index: i32) -> Result<i32, Error> {
+    pub fn get_int(&self, index: i32) -> Result<Option<i32>, Error> {
         let method = &self.get_int.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Int))?;
-        return util::cast::value_cast_i32(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Int);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i32(value).map_err(Error::from);
+        })
     }
-    pub fn get_int_by_label(&self, label: &str) -> Result<i32, Error> {
+
+    pub fn get_int_by_label(&self, label: &str) -> Result<Option<i32>, Error> {
         let method = &self.get_int.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Int))?;
-        return util::cast::value_cast_i32(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Int);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i32(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_long(&self, index: i32) -> Result<i64, Error> {
+    pub fn get_long(&self, index: i32) -> Result<Option<i64>, Error> {
         let method = &self.get_long.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Long))?;
-        return util::cast::value_cast_i64(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Long);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i64(value).map_err(Error::from);
+        })
     }
-    pub fn get_long_by_label(&self, label: &str) -> Result<i64, Error> {
+    pub fn get_long_by_label(&self, label: &str) -> Result<Option<i64>, Error> {
         let method = &self.get_long.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Long))?;
-        return util::cast::value_cast_i64(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Long);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_i64(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_float(&self, index: i32) -> Result<f32, Error> {
+    pub fn get_float(&self, index: i32) -> Result<Option<f32>, Error> {
         let method = &self.get_float.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Float))?;
-        return util::cast::value_cast_f32(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Float);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_f32(value).map_err(Error::from);
+        })
     }
-    pub fn get_float_by_label(&self, label: &str) -> Result<f32, Error> {
+
+    pub fn get_float_by_label(&self, label: &str) -> Result<Option<f32>, Error> {
         let method = &self.get_float.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Float))?;
-        return util::cast::value_cast_f32(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Float);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_f32(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_double(&self, index: i32) -> Result<f64, Error> {
+    pub fn get_double(&self, index: i32) -> Result<Option<f64>, Error> {
         let method = &self.get_double.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Double))?;
-        return util::cast::value_cast_f64(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Double);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_f64(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_double_by_label(&self, label: &str) -> Result<f64, Error> {
+    pub fn get_double_by_label(&self, label: &str) -> Result<Option<f64>, Error> {
         let method = &self.get_double.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Double))?;
-        return util::cast::value_cast_f64(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Double);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_f64(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_boolean(&self, index: i32) -> Result<bool, Error> {
+    pub fn get_boolean(&self, index: i32) -> Result<Option<bool>, Error> {
         let method = &self.get_boolean.0;
-        let value = self.use_index(method, index, ReturnType::Primitive(Primitive::Boolean))?;
-        return util::cast::value_cast_bool(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Boolean);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_bool(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_boolean_by_label(&self, label: &str) -> Result<bool, Error> {
+    pub fn get_boolean_by_label(&self, label: &str) -> Result<Option<bool>, Error> {
         let method = &self.get_boolean.1;
-        let value = self.use_label(method, label, ReturnType::Primitive(Primitive::Boolean))?;
-        return util::cast::value_cast_bool(value).map_err(Error::from);
+        let r_type = ReturnType::Primitive(Primitive::Boolean);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_bool(value).map_err(Error::from);
+        })
     }
 
-    pub fn get_timestamp_millis(&self, index: i32) -> Result<i64, Error> {
+    pub fn get_timestamp_millis(&self, index: i32) -> Result<Option<i64>, Error> {
         let method = &self.get_date.0;
-        let value = self.use_index(method, index, ReturnType::Object)?;
-        let mut env = unsafe { self.conn.env() };
-        return util::cast::value_cast_timestamp_millis(&mut env, value).map_err(Error::from);
+        let r_type = ReturnType::Object;
+        self.use_index(method, index, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_timestamp_millis(env, value).map_err(Error::from);
+        })
     }
-    pub fn get_timestamp_millis_by_label(&self, label: &str) -> Result<i64, Error> {
+
+    pub fn get_timestamp_millis_by_label(&self, label: &str) -> Result<Option<i64>, Error> {
         let method = &self.get_date.1;
-        let value = self.use_label(method, label, ReturnType::Object)?;
-        let mut env = unsafe { self.conn.env() };
-        return util::cast::value_cast_timestamp_millis(&mut env, value).map_err(Error::from);
+        let r_type = ReturnType::Object;
+        self.use_label(method, label, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_timestamp_millis(env, value).map_err(Error::from);
+        })
     }
 
     #[cfg(feature = "chrono")]
-    pub fn get_local_time(&self, index: i32) -> Result<chrono::DateTime<chrono::Local>, Error> {
+    pub fn get_local_time(
+        &self,
+        index: i32,
+    ) -> Result<Option<chrono::DateTime<chrono::Local>>, Error> {
         use chrono::{DateTime, Local, TimeZone};
         let timestamp = self.get_timestamp_millis(index)?;
-        let datetime: DateTime<Local> = Local
-            .timestamp_millis_opt(timestamp)
-            .earliest()
-            .ok_or(Error::ImpossibleError)?;
-        Ok(datetime)
+        if let Some(timestamp) = timestamp {
+            let datetime: DateTime<Local> = Local
+                .timestamp_millis_opt(timestamp)
+                .earliest()
+                .ok_or(Error::ImpossibleError)?;
+            Ok(Some(datetime))
+        } else {
+            Ok(None)
+        }
     }
     #[cfg(feature = "chrono")]
     pub fn get_local_time_by_label(
         &self,
         label: &str,
-    ) -> Result<chrono::DateTime<chrono::Local>, Error> {
+    ) -> Result<Option<chrono::DateTime<chrono::Local>>, Error> {
         use chrono::{DateTime, Local, TimeZone};
         let timestamp = self.get_timestamp_millis_by_label(label)?;
-        let datetime: DateTime<Local> = Local
-            .timestamp_millis_opt(timestamp)
-            .earliest()
-            .ok_or(Error::ImpossibleError)?;
-        Ok(datetime)
+        if let Some(timestamp) = timestamp {
+            let datetime: DateTime<Local> = Local
+                .timestamp_millis_opt(timestamp)
+                .earliest()
+                .ok_or(Error::ImpossibleError)?;
+            Ok(Some(datetime))
+        } else {
+            Ok(None)
+        }
     }
 
     #[cfg(feature = "chrono")]
-    pub fn get_utc_time(&self, index: i32) -> Result<chrono::DateTime<chrono::Utc>, Error> {
+    pub fn get_utc_time(&self, index: i32) -> Result<Option<chrono::DateTime<chrono::Utc>>, Error> {
         use chrono::{DateTime, TimeZone, Utc};
         let timestamp = self.get_timestamp_millis(index)?;
-        let datetime: DateTime<Utc> = Utc
-            .timestamp_millis_opt(timestamp)
-            .earliest()
-            .ok_or(Error::ImpossibleError)?;
-        Ok(datetime)
+        if let Some(timestamp) = timestamp {
+            let datetime: DateTime<Utc> = Utc
+                .timestamp_millis_opt(timestamp)
+                .earliest()
+                .ok_or(Error::ImpossibleError)?;
+            Ok(Some(datetime))
+        } else {
+            Ok(None)
+        }
     }
+
     #[cfg(feature = "chrono")]
     pub fn get_utc_time_by_label(
         &self,
         label: &str,
-    ) -> Result<chrono::DateTime<chrono::Utc>, Error> {
+    ) -> Result<Option<chrono::DateTime<chrono::Utc>>, Error> {
         use chrono::{DateTime, TimeZone, Utc};
         let timestamp = self.get_timestamp_millis_by_label(label)?;
-        let datetime: DateTime<Utc> = Utc
-            .timestamp_millis_opt(timestamp)
-            .earliest()
-            .ok_or(Error::ImpossibleError)?;
-        Ok(datetime)
+        if let Some(timestamp) = timestamp {
+            let datetime: DateTime<Utc> = Utc
+                .timestamp_millis_opt(timestamp)
+                .earliest()
+                .ok_or(Error::ImpossibleError)?;
+            Ok(Some(datetime))
+        } else {
+            Ok(None)
+        }
     }
 
-    fn use_index(
+    fn use_index<'a, T, F>(
         &self,
         method: &JMethodID,
         index: i32,
         r_type: ReturnType,
-    ) -> Result<JValueGen<JObject<'_>>, Error> {
-        let mut env = unsafe { self.conn.env() };
-        unsafe {
+        f: F,
+    ) -> Result<Option<T>, Error>
+    where
+        F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
+    {
+        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+        // read value
+        let value = unsafe {
             env.call_method_unchecked(&self.inner, method, r_type, &[jvalue { i: index }])
                 .map_err(Error::from)
+        }?;
+        if self.was_null_inner(&mut env)? {
+            return Ok(None);
         }
+        // not null,convert type.
+        let v = f(&mut env, value)?;
+        return Ok(Some(v));
     }
 
-    fn use_label(
+    fn use_label<'a, T, F>(
         &self,
         method: &JMethodID,
         label: &str,
         r_type: ReturnType,
-    ) -> Result<JValueGen<JObject<'_>>, Error> {
-        let mut env = unsafe { self.conn.env() };
+        f: F,
+    ) -> Result<Option<T>, Error>
+    where
+        F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
+    {
+        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+
         let label: JObject<'_> = env.new_string(label)?.into();
+        // read value
         let value = unsafe {
             env.call_method_unchecked(
                 &self.inner,
@@ -279,10 +362,16 @@ impl<'local> ResultSet<'local> {
                 r_type,
                 &[JValueGen::Object(&label).as_jni()],
             )
-            .map_err(Error::from)?
-        };
+            .map_err(Error::from)
+        }?;
         env.delete_local_ref(label)?;
-        Ok(value)
+        let was_null = self.was_null_inner(&mut env)?;
+        if was_null {
+            return Ok(None);
+        }
+        // not null,convert type.
+        let v = f(&mut env, value)?;
+        return Ok(Some(v));
     }
 }
 

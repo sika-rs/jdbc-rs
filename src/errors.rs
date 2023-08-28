@@ -26,6 +26,8 @@ pub enum InitError {
     JvmError(jni::JvmError),
     StartJvmError(jni::errors::StartJvmError),
     JniError(jni::errors::Error),
+    IsNotDatasource,
+    NoFactory,
 }
 
 impl From<jni::JvmError> for InitError {
@@ -52,6 +54,8 @@ impl Display for InitError {
             InitError::JvmError(err) => err.fmt(f),
             InitError::StartJvmError(err) => err.fmt(f),
             InitError::JniError(err) => err.fmt(f),
+            InitError::IsNotDatasource => f.write_str("IsNotDatasource"),
+            InitError::NoFactory => f.write_str("NoFactory"),
         }
     }
 }

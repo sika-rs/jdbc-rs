@@ -3,6 +3,8 @@ use std::sync::Arc;
 use jdbc::{errors::InitError, Builder, JvmBuilder};
 use jni::errors::{JniError, StartJvmError};
 
+#[macro_use]
+extern crate lazy_static;
 mod util;
 
 #[test]
