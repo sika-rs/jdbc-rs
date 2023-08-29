@@ -47,7 +47,7 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
 
 pub mod cast {
     use jni::errors::Error;
-    use jni::objects::AutoLocal;
+    use jni::objects::{AutoLocal, JByteArray, ReleaseMode};
     use jni::signature::{Primitive, ReturnType};
     use jni::sys::{jvalue, JNI_TRUE};
     use jni::{
@@ -63,6 +63,10 @@ pub mod cast {
         jvalue { z: value }
     }
 
+    pub fn u8_to_jvalue(value: u8) -> jvalue {
+        jvalue { b: value as i8 }
+    }
+
     pub fn jvalue_to_bool(value: jvalue) -> bool {
         unsafe {
             match value {
@@ -76,9 +80,6 @@ pub mod cast {
         obj: JValueGen<JObject<'a>>,
     ) -> Result<String, Error> {
         if let JValueGen::Object(obj) = obj {
-            if obj.is_null() {
-                return Err(Error::NullPtr("java.lang.NullPointerException"));
-            }
             return obj_cast_string(env, obj);
         }
         Err(Error::JavaException)
@@ -89,9 +90,6 @@ pub mod cast {
         obj: JValueGen<JObject<'a>>,
     ) -> Result<i64, Error> {
         if let JValueGen::Object(obj) = obj {
-            if obj.is_null() {
-                return Err(Error::NullPtr("java.lang.NullPointerException"));
-            }
             let class = AutoLocal::new(env.find_class("java/util/Date")?, &env);
             let method = env.get_method_id(&class, "getTime", "()J")?;
             unsafe {
@@ -108,7 +106,31 @@ pub mod cast {
         return Err(Error::JavaException);
     }
 
+    pub fn value_case_bytes<'a>(
+        env: &mut JNIEnv<'a>,
+        obj: JValueGen<JObject<'a>>,
+    ) -> Result<Vec<u8>, Error> {
+        if let jni::objects::JValueGen::Object(obj) = obj {
+            let array = JByteArray::from(obj);
+            unsafe {
+                let vec = {
+                    let array = env.get_array_elements(&array, ReleaseMode::NoCopyBack)?;
+                    let len = array.len();
+                    let mut vec = Vec::with_capacity(len);
+                    for byte in array.iter() {
+                        vec.push(*byte as u8);
+                    }
+                    vec
+                };
+                env.delete_local_ref(array)?;
+                return Ok(vec);
+            }
+        }
+        Ok(Vec::new())
+    }
+
     use crate::value_cast;
+    value_cast!(JValueGen::Byte, u8, value_cast_u8);
     value_cast!(JValueGen::Char, u16, value_cast_char);
     value_cast!(JValueGen::Bool, bool, value_cast_bool);
     value_cast!(JValueGen::Short, i16, value_cast_i16);
@@ -123,6 +145,14 @@ pub mod cast {
             pub fn $fun_name<'a>(obj: JValueGen<JObject<'a>>) -> Result<$return_type, Error> {
                 if let JValueGen::Bool(val) = obj {
                     return Ok(val == JNI_TRUE);
+                }
+                Err(Error::JavaException)
+            }
+        };
+        (JValueGen::Byte,$return_type:tt,$fun_name:ident) => {
+            pub fn $fun_name<'a>(obj: JValueGen<JObject<'a>>) -> Result<$return_type, Error> {
+                if let JValueGen::Byte(val) = obj {
+                    return Ok(val as u8);
                 }
                 Err(Error::JavaException)
             }
@@ -143,6 +173,17 @@ pub mod cast {
         let string = String::from(name_str);
         env.delete_local_ref(name)?;
         Ok(string)
+    }
+
+    pub fn vec_to_bytes_array<'a>(
+        env: &mut JNIEnv<'a>,
+        bytes: &[u8],
+    ) -> Result<JByteArray<'a>, Error> {
+        let byte_ref: &[i8] =
+            unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const i8, bytes.len()) };
+        let array: JByteArray = env.new_byte_array(bytes.len() as i32)?;
+        env.set_byte_array_region(&array, 0, byte_ref)?;
+        Ok(array)
     }
 }
 

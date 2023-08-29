@@ -23,6 +23,8 @@ pub struct ResultSet<'local> {
     get_double: (JMethodID, JMethodID),
     get_boolean: (JMethodID, JMethodID),
     get_date: (JMethodID, JMethodID),
+    get_byte: (JMethodID, JMethodID),
+    get_bytes: (JMethodID, JMethodID),
     env: AttachGuard<'local>,
     conn: &'local Connection,
 }
@@ -66,6 +68,12 @@ impl<'local> ResultSet<'local> {
         let get_boolean_by_label =
             env.get_method_id(&class, "getBoolean", "(Ljava/lang/String;)Z")?;
 
+        let get_byte = env.get_method_id(&class, "getByte", "(I)B")?;
+        let get_byte_by_label = env.get_method_id(&class, "getByte", "(Ljava/lang/String;)B")?;
+
+        let get_bytes = env.get_method_id(&class, "getBytes", "(I)[B")?;
+        let get_bytes_by_label = env.get_method_id(&class, "getBytes", "(Ljava/lang/String;)[B")?;
+
         let get_date = env.get_method_id(&class, "getDate", "(I)Ljava/sql/Date;")?;
         let get_date_by_label =
             env.get_method_id(&class, "getDate", "(Ljava/lang/String;)Ljava/sql/Date;")?;
@@ -84,6 +92,8 @@ impl<'local> ResultSet<'local> {
             get_double: (get_double, get_double_by_label),
             get_boolean: (get_boolean, get_boolean_by_label),
             get_date: (get_date, get_date_by_label),
+            get_byte: (get_byte, get_byte_by_label),
+            get_bytes: (get_bytes, get_bytes_by_label),
             env,
             conn,
         })
@@ -226,6 +236,38 @@ impl<'local> ResultSet<'local> {
         let r_type = ReturnType::Primitive(Primitive::Boolean);
         self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
             return util::cast::value_cast_bool(value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_byte(&self, index: i32) -> Result<Option<u8>, Error> {
+        let method = &self.get_byte.0;
+        let r_type = ReturnType::Primitive(Primitive::Byte);
+        self.use_index(method, index, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_u8(value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_byte_by_label(&self, label: &str) -> Result<Option<u8>, Error> {
+        let method = &self.get_byte.1;
+        let r_type = ReturnType::Primitive(Primitive::Byte);
+        self.use_label(method, label, r_type, |_: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_u8(value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_bytes(&self, index: i32) -> Result<Option<Vec<u8>>, Error> {
+        let method = &self.get_bytes.0;
+        let r_type = ReturnType::Array;
+        self.use_index(method, index, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_case_bytes(env, value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_bytes_by_label(&self, label: &str) -> Result<Option<Vec<u8>>, Error> {
+        let method = &self.get_bytes.1;
+        let r_type = ReturnType::Array;
+        self.use_label(method, label, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_case_bytes(env, value).map_err(Error::from);
         })
     }
 

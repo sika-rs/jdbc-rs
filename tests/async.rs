@@ -12,7 +12,7 @@ mod test_async {
     fn test() {
         #[cfg(feature = "async-std")]
         {
-            async_std::task::spawn(async {
+            async_std::task::block_on(async {
                 let _ = test_async().await;
             });
         }
@@ -68,6 +68,7 @@ mod test_async {
         let result = statement.execute_query().await?;
         assert!(result.next()?);
         let value = result.get_string(1)?.unwrap_or("".into());
+
         assert_eq!(value, "Tom");
 
         Ok(())

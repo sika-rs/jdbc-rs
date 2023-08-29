@@ -61,8 +61,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./libs
 
 # 支持类型
 
-- [ ] char
-- [ ] byte
+- [x] byte
 - [x] short
 - [x] int
 - [x] long
@@ -74,7 +73,7 @@ mvn dependency:copy-dependencies -DoutputDirectory=./libs
 - [ ] Object
 - [ ] Blob
 - [ ] Clob
-- [ ] byte[]
+- [x] byte[]
 - [ ] BigDecimal
 - [ ] AsciiStream
 - [ ] BinaryStream

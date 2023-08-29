@@ -20,12 +20,12 @@ pub fn vm() -> JavaVM {
     let vm = JvmBuilder::new()
         .classpath(libs)
         .vm_option("-Duser.timezone=UTC")
-        .xmx_mb(16)
+        .xmx_mb(128)
         .build()
         .expect("init jvm error.");
     vm
 }
 
 lazy_static! {
-    static ref VM: Arc<JavaVM> = Arc::new(vm());
+    pub static ref VM: Arc<JavaVM> = Arc::new(vm());
 }

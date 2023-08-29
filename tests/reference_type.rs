@@ -16,6 +16,14 @@ fn test() -> Result<(), jdbc::errors::Error> {
     assert_eq!(result.next()?, true);
     assert_eq!(result.get_string(1)?, Some("value".into()));
 
+    // bytes
+    let statement = conn
+        .prepare_statement("select ? as value")?
+        .set_bytes(1, "hello world".as_bytes())?;
+    let result = statement.execute_query()?;
+    assert_eq!(result.next()?, true);
+    assert_eq!(result.get_bytes(1)?, Some("hello world".into()));
+
     Ok(())
 }
 
@@ -50,6 +58,7 @@ fn test_null() -> Result<(), jdbc::errors::Error> {
 
     assert_eq!(result.get_string(1)?, None);
     assert_eq!(result.get_timestamp_millis(1)?, None);
+    assert_eq!(result.get_bytes(1)?, None);
 
     assert_eq!(result.was_null()?, true);
     Ok(())

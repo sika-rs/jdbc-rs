@@ -147,6 +147,8 @@ pub struct PreparedStatement<'local> {
     set_float: JMethodID,
     set_double: JMethodID,
     set_bool: JMethodID,
+    set_byte: JMethodID,
+    set_bytes: JMethodID,
     execute_query: JMethodID,
     execute_update: JMethodID,
     conn: &'local Connection,
@@ -165,6 +167,8 @@ impl<'local> PreparedStatement<'local> {
         let set_float = env.get_method_id(&class, "setFloat", "(IF)V")?;
         let set_double = env.get_method_id(&class, "setDouble", "(ID)V")?;
         let set_bool = env.get_method_id(&class, "setBoolean", "(IZ)V")?;
+        let set_byte = env.get_method_id(&class, "setByte", "(IB)V")?;
+        let set_bytes = env.get_method_id(&class, "setBytes", "(I[B)V")?;
 
         let execute_query = env.get_method_id(&class, "executeQuery", "()Ljava/sql/ResultSet;")?;
         let execute_update = env.get_method_id(&class, "executeUpdate", "()I")?;
@@ -181,6 +185,8 @@ impl<'local> PreparedStatement<'local> {
             set_float,
             set_double,
             set_bool,
+            set_byte,
+            set_bytes,
             execute_query,
             execute_update,
             conn,
@@ -275,6 +281,19 @@ impl<'local> PreparedStatement<'local> {
     }
     pub fn set_boolean(mut self, index: i32, value: bool) -> Result<Self, Error> {
         self.set_param(self.set_bool, index, util::cast::bool_to_jvalue(value))?;
+        Ok(self)
+    }
+
+    pub fn set_byte(mut self, index: i32, value: u8) -> Result<Self, Error> {
+        self.set_param(self.set_byte, index, util::cast::u8_to_jvalue(value))?;
+        Ok(self)
+    }
+
+    pub fn set_bytes(mut self, index: i32, value: &[u8]) -> Result<Self, Error> {
+        let mut env = self.conn.env()?;
+        let array = util::cast::vec_to_bytes_array(&mut env, value)?;
+        self.set_param(self.set_bytes, index, JValueGen::Object(&array).as_jni())?;
+        env.delete_local_ref(array)?;
         Ok(self)
     }
 

@@ -182,7 +182,7 @@ impl JvmBuilder {
             version: JNIVersion::V8,
             classpath: String::from("./libs/"),
             xmx: 72,
-            xms: 72,
+            xms: 16,
             vm_options: Vec::new(),
         }
     }
