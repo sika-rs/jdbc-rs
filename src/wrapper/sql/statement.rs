@@ -149,6 +149,7 @@ pub struct PreparedStatement<'local> {
     set_bool: JMethodID,
     set_byte: JMethodID,
     set_bytes: JMethodID,
+    set_big_decimal: JMethodID,
     execute_query: JMethodID,
     execute_update: JMethodID,
     conn: &'local Connection,
@@ -170,6 +171,9 @@ impl<'local> PreparedStatement<'local> {
         let set_byte = env.get_method_id(&class, "setByte", "(IB)V")?;
         let set_bytes = env.get_method_id(&class, "setBytes", "(I[B)V")?;
 
+        let set_big_decimal =
+            env.get_method_id(&class, "setBigDecimal", "(ILjava/math/BigDecimal;)V")?;
+
         let execute_query = env.get_method_id(&class, "executeQuery", "()Ljava/sql/ResultSet;")?;
         let execute_update = env.get_method_id(&class, "executeUpdate", "()I")?;
 
@@ -187,6 +191,7 @@ impl<'local> PreparedStatement<'local> {
             set_bool,
             set_byte,
             set_bytes,
+            set_big_decimal,
             execute_query,
             execute_update,
             conn,
@@ -294,6 +299,29 @@ impl<'local> PreparedStatement<'local> {
         let array = util::cast::vec_to_bytes_array(&mut env, value)?;
         self.set_param(self.set_bytes, index, JValueGen::Object(&array).as_jni())?;
         env.delete_local_ref(array)?;
+        Ok(self)
+    }
+
+    pub fn set_big_decimal(
+        mut self,
+        index: i32,
+        value: &bigdecimal::BigDecimal,
+    ) -> Result<Self, Error> {
+        let mut env = self.conn.env()?;
+        let num = value.to_string();
+        let java_string = env.new_string(num)?;
+        let java_num = env.new_object(
+            "java/math/BigDecimal",
+            "(Ljava/lang/String;)V",
+            &[JValueGen::Object(&java_string)],
+        )?;
+        self.set_param(
+            self.set_big_decimal,
+            index,
+            JValueGen::Object(&java_num).as_jni(),
+        )?;
+        env.delete_local_ref(java_string)?;
+        env.delete_local_ref(java_num)?;
         Ok(self)
     }
 

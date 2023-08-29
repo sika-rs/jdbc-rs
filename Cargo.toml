@@ -18,6 +18,7 @@ chrono = "0.4.26"
 tokio = "*"
 async-std = "*"
 async-trait = "0.1.73"
+bigdecimal = "0.4.1"
 
 [dev-dependencies]
 chrono = "0.4.26"

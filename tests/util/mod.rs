@@ -29,3 +29,15 @@ pub fn vm() -> JavaVM {
 lazy_static! {
     pub static ref VM: Arc<JavaVM> = Arc::new(vm());
 }
+
+#[macro_export]
+macro_rules! init {
+    () => {
+        #[macro_use]
+        extern crate lazy_static;
+        lazy_static! {
+            static ref DS: std::sync::Arc<jdbc::DataSource> =
+                std::sync::Arc::new(crate::util::sqlite());
+        }
+    };
+}

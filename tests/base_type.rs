@@ -101,7 +101,7 @@ fn test_byte() -> Result<(), jdbc::errors::Error> {
     let java_string: JObject = env.new_string(string)?.into();
     let bytes = env.call_method(&java_string, "getBytes", "()[B", &[])?;
     env.delete_local_ref(java_string)?;
-    let bytes = jdbc::util::cast::value_case_bytes(&mut env, bytes)?;
+    let bytes = jdbc::util::cast::value_cast_bytes(&mut env, bytes)?;
     assert_eq!(bytes, string.as_bytes());
 
     // Rust Vec<u8> to Java Bytes

@@ -15,6 +15,13 @@ pub fn delete_value<'a>(env: &mut JNIEnv<'a>, val: JValueGen<JObject<'_>>) -> Re
 }
 
 #[inline(always)]
+pub fn to_string<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<String, Error> {
+    let string_obj = env.call_method(obj, "toString", "()Ljava/lang/String;", &[])?;
+    let string = cast::value_cast_string(env, string_obj)?;
+    Ok(string)
+}
+
+#[inline(always)]
 pub fn auto_close<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<(), Error> {
     let autoclose = env.find_class("java/lang/AutoCloseable")?;
     if !env.is_instance_of(obj, &autoclose)? {
@@ -46,6 +53,7 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
 }
 
 pub mod cast {
+    use bigdecimal::BigDecimal;
     use jni::errors::Error;
     use jni::objects::{AutoLocal, JByteArray, ReleaseMode};
     use jni::signature::{Primitive, ReturnType};
@@ -106,7 +114,7 @@ pub mod cast {
         return Err(Error::JavaException);
     }
 
-    pub fn value_case_bytes<'a>(
+    pub fn value_cast_bytes<'a>(
         env: &mut JNIEnv<'a>,
         obj: JValueGen<JObject<'a>>,
     ) -> Result<Vec<u8>, Error> {
@@ -127,6 +135,19 @@ pub mod cast {
             }
         }
         Ok(Vec::new())
+    }
+
+    pub fn value_cast_big_decimal<'a>(
+        env: &mut JNIEnv<'a>,
+        obj: JValueGen<JObject<'a>>,
+    ) -> Result<BigDecimal, Error> {
+        if let jni::objects::JValueGen::Object(obj) = obj {
+            let string = super::to_string(env, &obj)?;
+            env.delete_local_ref(obj)?;
+            return Ok(string.parse().unwrap_or(BigDecimal::from(0)));
+        }
+
+        Ok(BigDecimal::from(0))
     }
 
     use crate::value_cast;

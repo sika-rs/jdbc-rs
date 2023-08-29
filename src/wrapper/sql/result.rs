@@ -1,3 +1,4 @@
+use bigdecimal::BigDecimal;
 use jni::{
     objects::{AutoLocal, GlobalRef, JMethodID, JObject, JValueGen},
     signature::{Primitive, ReturnType},
@@ -25,6 +26,7 @@ pub struct ResultSet<'local> {
     get_date: (JMethodID, JMethodID),
     get_byte: (JMethodID, JMethodID),
     get_bytes: (JMethodID, JMethodID),
+    get_big_decimal: (JMethodID, JMethodID),
     env: AttachGuard<'local>,
     conn: &'local Connection,
 }
@@ -74,6 +76,14 @@ impl<'local> ResultSet<'local> {
         let get_bytes = env.get_method_id(&class, "getBytes", "(I)[B")?;
         let get_bytes_by_label = env.get_method_id(&class, "getBytes", "(Ljava/lang/String;)[B")?;
 
+        let get_big_decimal =
+            env.get_method_id(&class, "getBigDecimal", "(I)Ljava/math/BigDecimal;")?;
+        let get_big_decimal_by_label = env.get_method_id(
+            &class,
+            "getBigDecimal",
+            "(Ljava/lang/String;)Ljava/math/BigDecimal;",
+        )?;
+
         let get_date = env.get_method_id(&class, "getDate", "(I)Ljava/sql/Date;")?;
         let get_date_by_label =
             env.get_method_id(&class, "getDate", "(Ljava/lang/String;)Ljava/sql/Date;")?;
@@ -94,6 +104,7 @@ impl<'local> ResultSet<'local> {
             get_date: (get_date, get_date_by_label),
             get_byte: (get_byte, get_byte_by_label),
             get_bytes: (get_bytes, get_bytes_by_label),
+            get_big_decimal: (get_big_decimal, get_big_decimal_by_label),
             env,
             conn,
         })
@@ -259,7 +270,7 @@ impl<'local> ResultSet<'local> {
         let method = &self.get_bytes.0;
         let r_type = ReturnType::Array;
         self.use_index(method, index, r_type, |env: &mut JNIEnv<'_>, value| {
-            return util::cast::value_case_bytes(env, value).map_err(Error::from);
+            return util::cast::value_cast_bytes(env, value).map_err(Error::from);
         })
     }
 
@@ -267,7 +278,23 @@ impl<'local> ResultSet<'local> {
         let method = &self.get_bytes.1;
         let r_type = ReturnType::Array;
         self.use_label(method, label, r_type, |env: &mut JNIEnv<'_>, value| {
-            return util::cast::value_case_bytes(env, value).map_err(Error::from);
+            return util::cast::value_cast_bytes(env, value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_big_decimal(&self, index: i32) -> Result<Option<BigDecimal>, Error> {
+        let method = &self.get_big_decimal.0;
+        let r_type = ReturnType::Object;
+        self.use_index(method, index, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_big_decimal(env, value).map_err(Error::from);
+        })
+    }
+
+    pub fn get_big_decimal_by_label(&self, label: &str) -> Result<Option<BigDecimal>, Error> {
+        let method = &self.get_big_decimal.1;
+        let r_type = ReturnType::Object;
+        self.use_label(method, label, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_big_decimal(env, value).map_err(Error::from);
         })
     }
 
