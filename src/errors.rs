@@ -4,6 +4,8 @@ use std::fmt::Display;
 pub enum Error {
     JniError(jni::errors::Error),
     ImpossibleError,
+    #[cfg(feature = "tokio")]
+    JoinError(tokio::task::JoinError),
 }
 
 impl From<jni::errors::Error> for Error {
@@ -12,11 +14,20 @@ impl From<jni::errors::Error> for Error {
     }
 }
 
+#[cfg(feature = "tokio")]
+impl From<tokio::task::JoinError> for Error {
+    fn from(value: tokio::task::JoinError) -> Self {
+        Self::JoinError(value)
+    }
+}
+
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::JniError(err) => err.fmt(f),
             Error::ImpossibleError => f.write_str("Impossible Error."),
+            #[cfg(feature = "tokio")]
+            Error::JoinError(err) => err.fmt(f),
         }
     }
 }

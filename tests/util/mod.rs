@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use jdbc::JvmBuilder;
-use jdbc::{Builder, Datasource};
+use jdbc::{Builder, DataSource};
 use jni::JavaVM;
 
 #[allow(dead_code)]
-pub fn sqlite() -> Datasource {
+pub fn sqlite() -> DataSource {
     Builder::new()
         .vm(VM.clone())
         .jdbc_url("jdbc:sqlite::memory:")

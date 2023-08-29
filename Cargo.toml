@@ -15,11 +15,19 @@ readme = "README.md"
 log = "0.4.20"
 jni = { version = "0.21.1", features = ["invocation"] }
 chrono = "0.4.26"
+tokio = "*"
+async-std = "*"
+async-trait = "0.1.73"
 
 [dev-dependencies]
 chrono = "0.4.26"
 lazy_static = "1.4.0"
+tokio-test = "0.4.3"
+
 
 [features]
 default = []
 chrono = []
+tokio = ["async"]
+async-std = ["async"]
+async = []

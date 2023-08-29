@@ -12,7 +12,7 @@ use crate::{
         hikari::{HikariConfig, HikariDataSource},
         properties::Properties,
     },
-    Datasource,
+    DataSource,
 };
 
 type FactoryFn =
@@ -97,7 +97,7 @@ impl Builder {
         self
     }
 
-    pub fn build(self) -> Result<Datasource, InitError> {
+    pub fn build(self) -> Result<DataSource, InitError> {
         let vm = {
             if let Some(vm) = self.vm {
                 vm
@@ -121,7 +121,8 @@ impl Builder {
         {
             check_datasource(&vm, &datasource)?;
         }
-        Ok(Datasource::new(vm, datasource))
+        let datasource = DataSource::new(vm, datasource)?;
+        Ok(datasource)
     }
 }
 

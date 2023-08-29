@@ -1,3 +1,4 @@
+#[cfg(not(feature = "async"))]
 #[test]
 pub fn test() -> Result<(), jdbc::errors::Error> {
     let ds = util::sqlite();

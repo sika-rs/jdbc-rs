@@ -2,18 +2,23 @@
 extern crate lazy_static;
 mod util;
 
+#[cfg(not(feature = "async"))]
 #[test]
 fn test() -> Result<(), jdbc::errors::Error> {
+    use jdbc::IStatement;
+
     let datasource = util::sqlite();
     let conn = datasource.get_connection()?;
 
     let data = ["Tom", "Jerry", "Spike"];
 
     // Create Table
-    conn.prepare_statement("create table test(id primary key,name VARCHAR(255));")?
-        .execute_update()?;
+    // Statement
+    conn.create_statement()?
+        .execute_update("create table test(id primary key,name VARCHAR(255));")?;
 
     // Insert Data
+    // PreparedStatement
     for i in 0..data.len() {
         let mut statement = conn
             .prepare_statement("insert into test(id,name) values(?,?);")?

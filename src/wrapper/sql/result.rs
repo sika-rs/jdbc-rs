@@ -1,8 +1,8 @@
 use jni::{
-    objects::{AutoLocal, JMethodID, JObject, JValueGen},
+    objects::{AutoLocal, GlobalRef, JMethodID, JObject, JValueGen},
     signature::{Primitive, ReturnType},
     sys::jvalue,
-    JNIEnv,
+    AttachGuard, JNIEnv,
 };
 
 use crate::{errors::Error, util, Connection};
@@ -10,7 +10,7 @@ use crate::{errors::Error, util, Connection};
 use super::ResultSetMetaData;
 
 pub struct ResultSet<'local> {
-    inner: AutoLocal<'local, JObject<'local>>,
+    inner: GlobalRef,
     get_meta_data: JMethodID,
     get_row: JMethodID,
     next: JMethodID,
@@ -23,18 +23,14 @@ pub struct ResultSet<'local> {
     get_double: (JMethodID, JMethodID),
     get_boolean: (JMethodID, JMethodID),
     get_date: (JMethodID, JMethodID),
-    env: JNIEnv<'local>,
-    conn: &'local Connection<'local>,
+    env: AttachGuard<'local>,
+    conn: &'local Connection,
 }
 
 impl<'local> ResultSet<'local> {
-    pub fn from_ref(
-        conn: &'local Connection<'local>,
-        statement: JObject<'local>,
-    ) -> Result<Self, Error> {
-        let mut env = unsafe { conn.env() };
+    pub fn from_ref(conn: &'local Connection, statement: GlobalRef) -> Result<Self, Error> {
+        let mut env = conn.env()?;
 
-        let statement = AutoLocal::new(statement, &env);
         let class = AutoLocal::new(env.find_class("java/sql/ResultSet")?, &env);
         let get_meta_data =
             env.get_method_id(&class, "getMetaData", "()Ljava/sql/ResultSetMetaData;")?;
@@ -94,7 +90,7 @@ impl<'local> ResultSet<'local> {
     }
 
     pub fn get_meta_data(&self) -> Result<ResultSetMetaData<'local>, Error> {
-        let mut env = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         let result = unsafe {
             env.call_method_unchecked(&self.inner, self.get_meta_data, ReturnType::Object, &[])?
         };
@@ -105,12 +101,12 @@ impl<'local> ResultSet<'local> {
     }
 
     pub fn get_row(&self) -> Result<i32, Error> {
-        let mut env = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         return util::call::get_int(&mut env, &self.inner, &self.get_row);
     }
 
     pub fn next(&self) -> Result<bool, Error> {
-        let mut env = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         return util::call::get_bool(&mut env, &self.inner, &self.next);
     }
 
@@ -120,7 +116,7 @@ impl<'local> ResultSet<'local> {
     }
 
     pub fn was_null<'a>(&self) -> Result<bool, Error> {
-        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         let value = util::call::get_bool(&mut env, &self.inner, &self.was_null)?;
         Ok(value)
     }
@@ -327,7 +323,7 @@ impl<'local> ResultSet<'local> {
     where
         F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
     {
-        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         // read value
         let value = unsafe {
             env.call_method_unchecked(&self.inner, method, r_type, &[jvalue { i: index }])
@@ -351,7 +347,7 @@ impl<'local> ResultSet<'local> {
     where
         F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
     {
-        let mut env: JNIEnv<'local> = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
 
         let label: JObject<'_> = env.new_string(label)?.into();
         // read value

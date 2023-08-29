@@ -2,6 +2,7 @@
 extern crate lazy_static;
 mod util;
 
+#[cfg(not(feature = "async"))]
 #[test]
 fn test() -> Result<(), jdbc::errors::Error> {
     let ds = util::sqlite();
@@ -58,6 +59,7 @@ fn test() -> Result<(), jdbc::errors::Error> {
     Ok(())
 }
 
+#[cfg(not(feature = "async"))]
 #[test]
 fn test_null() -> Result<(), jdbc::errors::Error> {
     let ds = util::sqlite();

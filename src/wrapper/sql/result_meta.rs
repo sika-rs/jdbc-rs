@@ -10,15 +10,12 @@ pub struct ResultSetMetaData<'local> {
     inner: AutoLocal<'local, JObject<'local>>,
     get_column_count: JMethodID,
     get_column_name: JMethodID,
-    conn: &'local Connection<'local>,
+    conn: &'local Connection,
 }
 
 impl<'local> ResultSetMetaData<'local> {
-    pub fn from_ref(
-        conn: &'local Connection<'local>,
-        statement: JObject<'local>,
-    ) -> Result<Self, Error> {
-        let mut env = unsafe { conn.env() };
+    pub fn from_ref(conn: &'local Connection, statement: JObject<'local>) -> Result<Self, Error> {
+        let mut env = conn.env()?;
 
         let statement = AutoLocal::new(statement, &env);
 
@@ -37,12 +34,12 @@ impl<'local> ResultSetMetaData<'local> {
     }
 
     pub fn get_column_count(&self) -> Result<i32, Error> {
-        let mut env = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         return util::call::get_int(&mut env, &self.inner, &self.get_column_count);
     }
 
     pub fn get_column_name(&self, column: i32) -> Result<String, Error> {
-        let mut env = unsafe { self.conn.env() };
+        let mut env = self.conn.env()?;
         let name = unsafe {
             env.call_method_unchecked(
                 &self.inner,
