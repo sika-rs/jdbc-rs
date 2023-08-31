@@ -1,0 +1,12 @@
+[sqlite]
+jdbcUrl = "jdbc:sqlite::memory:"
+
+[mysql8]
+jdbcUrl = "jdbc:mysql://localhost:3306/test?characterEncoding=utf-8&serverTimezone=UTC"
+username = "root"
+password = "jdbc-test"
+
+[postgres]
+jdbcUrl = "jdbc:postgresql://localhost:5432/postgres?characterEncoding=utf-8&serverTimezone=UTC"
+username = "postgres"
+password = "jdbc-test"

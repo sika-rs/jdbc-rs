@@ -4,25 +4,17 @@ mod util;
 
 #[cfg(feature = "async")]
 mod test_async {
+    use std::sync::Arc;
+
     use jdbc::{DataSource, IStatement};
 
-    use crate::util;
+    use crate::{test, util};
 
-    #[test]
-    fn test() {
-        #[cfg(feature = "async-std")]
-        {
-            async_std::task::block_on(async {
-                let _ = test_async().await;
-            });
+    test!(
+        fn test() {
+            let _ = test_async().await;
         }
-        #[cfg(feature = "tokio")]
-        {
-            tokio_test::block_on(async {
-                let _ = test_async().await;
-            });
-        }
-    }
+    );
 
     async fn test_async() -> Result<(), jdbc::errors::Error> {
         let ds = util::sqlite();
@@ -38,9 +30,7 @@ mod test_async {
 
         #[cfg(feature = "tokio")]
         {
-            // Task 1
             let j1 = tokio::spawn(async move { query(ds).await });
-            // Task 2
             let j2 = tokio::spawn(async move { query(ds1).await });
             j1.await??;
             j2.await??;
@@ -48,7 +38,7 @@ mod test_async {
         Ok(())
     }
 
-    async fn query(ds: DataSource) -> Result<(), jdbc::errors::Error> {
+    async fn query(ds: Arc<DataSource>) -> Result<(), jdbc::errors::Error> {
         let conn: jdbc::Connection = ds.get_connection().await?;
         conn.create_statement()
             .await?
@@ -62,7 +52,7 @@ mod test_async {
             .await?;
         assert_eq!(count, 1);
 
-        let statement = conn
+        let mut statement = conn
             .prepare_statement("select name from test where id=1")
             .await?;
         let result = statement.execute_query().await?;

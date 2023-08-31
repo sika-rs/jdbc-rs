@@ -1,5 +1,5 @@
 use super::ResultSet;
-use crate::{errors::Error, util, Connection};
+use crate::{errors::Error, util, wrapper::io::OutputStream, Connection};
 use async_trait::async_trait;
 use jni::{
     objects::{AutoLocal, GlobalRef, JMethodID, JObject, JValueGen},
@@ -7,12 +7,12 @@ use jni::{
     sys::jvalue,
     JavaVM,
 };
-use std::sync::Arc;
+use std::{io::Read, sync::Arc};
 
 #[cfg(not(feature = "async"))]
 pub trait IStatement {
     // fn execute(&mut self) -> Result<bool, Error>;
-    fn execute_query(&self, sql: &str) -> Result<ResultSet, Error>;
+    fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error>;
     fn execute_update(&mut self, sql: &str) -> Result<i32, Error>;
 }
 
@@ -20,7 +20,7 @@ pub trait IStatement {
 #[async_trait]
 pub trait IStatement {
     // async fn execute(&mut self) -> Result<bool, Error>;
-    async fn execute_query(&self, sql: &str) -> Result<ResultSet, Error>;
+    async fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error>;
     async fn execute_update(&mut self, sql: &str) -> Result<i32, Error>;
 }
 
@@ -102,7 +102,7 @@ impl<'local> Statement<'local> {
 #[cfg(feature = "async")]
 #[async_trait]
 impl<'local> IStatement for Statement<'local> {
-    async fn execute_query(&self, sql: &str) -> Result<ResultSet, Error> {
+    async fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error> {
         let vm = self.conn.vm().clone();
         let inner = self.inner.clone();
         let method = self.execute_query_sql.clone();
@@ -127,7 +127,7 @@ impl<'local> IStatement for Statement<'local> {
 #[cfg(not(feature = "async"))]
 #[async_trait]
 impl<'local> IStatement for Statement<'local> {
-    fn execute_query(&self, sql: &str) -> Result<ResultSet, Error> {
+    fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error> {
         let result_ref =
             Self::execute_query_sql(self.conn.vm(), &self.inner, &self.execute_query_sql, sql)?;
         ResultSet::from_ref(self.conn, result_ref)
@@ -149,9 +149,11 @@ pub struct PreparedStatement<'local> {
     set_bool: JMethodID,
     set_byte: JMethodID,
     set_bytes: JMethodID,
+    set_binary_stream: JMethodID,
     set_big_decimal: JMethodID,
     execute_query: JMethodID,
     execute_update: JMethodID,
+    streams: Vec<GlobalRef>,
     conn: &'local Connection,
 }
 
@@ -170,6 +172,9 @@ impl<'local> PreparedStatement<'local> {
         let set_bool = env.get_method_id(&class, "setBoolean", "(IZ)V")?;
         let set_byte = env.get_method_id(&class, "setByte", "(IB)V")?;
         let set_bytes = env.get_method_id(&class, "setBytes", "(I[B)V")?;
+
+        let set_binary_stream =
+            env.get_method_id(&class, "setBinaryStream", "(ILjava/io/InputStream;)V")?;
 
         let set_big_decimal =
             env.get_method_id(&class, "setBigDecimal", "(ILjava/math/BigDecimal;)V")?;
@@ -191,9 +196,11 @@ impl<'local> PreparedStatement<'local> {
             set_bool,
             set_byte,
             set_bytes,
+            set_binary_stream,
             set_big_decimal,
             execute_query,
             execute_update,
+            streams: Vec::new(),
             conn,
         })
     }
@@ -210,11 +217,12 @@ impl<'local> PreparedStatement<'local> {
     }
 
     #[cfg(feature = "async")]
-    pub async fn execute_query(&self) -> Result<ResultSet, Error> {
+    pub async fn execute_query(&mut self) -> Result<ResultSet, Error> {
         let vm = self.conn.vm().clone();
         let inner = self.inner.clone();
         let method = self.execute_query.clone();
         let result_ref = crate::block_on!(move || Self::execute_query_inner(&vm, &inner, &method));
+        self.close_streams()?;
         return Ok(ResultSet::from_ref(self.conn, result_ref)?);
     }
     #[cfg(feature = "async")]
@@ -223,6 +231,7 @@ impl<'local> PreparedStatement<'local> {
         let inner = self.inner.clone();
         let method = self.execute_update.clone();
         let count = crate::block_on!(move || Self::execute_update_inner(&vm, &inner, &method));
+        self.close_streams()?;
         return Ok(count);
     }
 
@@ -325,6 +334,39 @@ impl<'local> PreparedStatement<'local> {
         Ok(self)
     }
 
+    pub fn set_binary_stream<T: Read + Send + 'static>(
+        mut self,
+        index: i32,
+        mut read: T,
+    ) -> Result<Self, Error> {
+        let mut env = self.conn.env()?;
+        // OutputStream
+        let output_obj = env.new_object("java/io/PipedOutputStream", "()V", &[])?;
+        let output = env.new_global_ref(output_obj)?;
+        // InputStream
+        let input = env.new_object(
+            "java/io/PipedInputStream",
+            "(Ljava/io/PipedOutputStream;)V",
+            &[JValueGen::Object(&output)],
+        )?;
+        let input = env.new_global_ref(input)?;
+
+        let vm = self.conn.vm().clone();
+        std::thread::spawn(move || {
+            let mut output = OutputStream::new(output, vm);
+            std::io::copy(&mut read, &mut output).expect("");
+        });
+
+        self.set_param(
+            self.set_binary_stream,
+            index,
+            JValueGen::Object(&input).as_jni(),
+        )?;
+
+        self.streams.push(input);
+        Ok(self)
+    }
+
     #[inline(always)]
     fn set_param(&mut self, method: JMethodID, index: i32, value: jvalue) -> Result<(), Error> {
         let mut env = self.conn.env()?;
@@ -338,12 +380,20 @@ impl<'local> PreparedStatement<'local> {
         }
         Ok(())
     }
+
+    fn close_streams(&mut self) -> Result<(), Error> {
+        let mut env = self.conn.env()?;
+        while let Some(obj) = self.streams.pop() {
+            util::auto_close(&mut env, &obj)?;
+        }
+        Ok(())
+    }
 }
 
 #[cfg(feature = "async")]
 #[async_trait]
 impl<'local> IStatement for PreparedStatement<'local> {
-    async fn execute_query(&self, sql: &str) -> Result<ResultSet, Error> {
+    async fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error> {
         self.statement.execute_query(sql).await
     }
     async fn execute_update(&mut self, sql: &str) -> Result<i32, Error> {
@@ -353,11 +403,15 @@ impl<'local> IStatement for PreparedStatement<'local> {
 
 #[cfg(not(feature = "async"))]
 impl<'local> IStatement for PreparedStatement<'local> {
-    fn execute_query(&self, sql: &str) -> Result<ResultSet, Error> {
-        self.statement.execute_query(sql)
+    fn execute_query(&mut self, sql: &str) -> Result<ResultSet, Error> {
+        let res = self.statement.execute_query(sql);
+        self.streams.clear();
+        res
     }
     fn execute_update(&mut self, sql: &str) -> Result<i32, Error> {
-        self.statement.execute_update(sql)
+        let res = self.statement.execute_update(sql);
+        self.streams.clear();
+        res
     }
 }
 

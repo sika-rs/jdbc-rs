@@ -1,4 +1,4 @@
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR")
@@ -7,6 +7,7 @@ fn main() {
         .map(|v| v + "/libs");
 
     if let Some(out_dir) = out_dir {
+        let _ = std::fs::remove_dir_all(Path::new(out_dir.as_str()));
         let output = command()
             .arg("dependency:copy-dependencies")
             .arg(format!("-DoutputDirectory={}", out_dir))

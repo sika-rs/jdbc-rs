@@ -53,11 +53,14 @@ pub fn get_class_name<'a>(env: &mut JNIEnv<'a>, obj: &JObject<'a>) -> Result<Str
 }
 
 pub mod cast {
+    use std::sync::Arc;
+
     use bigdecimal::BigDecimal;
     use jni::errors::Error;
     use jni::objects::{AutoLocal, JByteArray, ReleaseMode};
     use jni::signature::{Primitive, ReturnType};
     use jni::sys::{jvalue, JNI_TRUE};
+    use jni::JavaVM;
     use jni::{
         objects::{JObject, JString, JValueGen},
         JNIEnv,
@@ -120,21 +123,27 @@ pub mod cast {
     ) -> Result<Vec<u8>, Error> {
         if let jni::objects::JValueGen::Object(obj) = obj {
             let array = JByteArray::from(obj);
-            unsafe {
-                let vec = {
-                    let array = env.get_array_elements(&array, ReleaseMode::NoCopyBack)?;
-                    let len = array.len();
-                    let mut vec = Vec::with_capacity(len);
-                    for byte in array.iter() {
-                        vec.push(*byte as u8);
-                    }
-                    vec
-                };
-                env.delete_local_ref(array)?;
-                return Ok(vec);
-            }
+            return array_cast_bytes(env, array);
         }
         Ok(Vec::new())
+    }
+    pub fn array_cast_bytes<'a>(
+        env: &mut JNIEnv<'a>,
+        obj: JByteArray<'a>,
+    ) -> Result<Vec<u8>, Error> {
+        unsafe {
+            let vec = {
+                let array = env.get_array_elements(&obj, ReleaseMode::NoCopyBack)?;
+                let len = array.len();
+                let mut vec = Vec::with_capacity(len);
+                for byte in array.iter() {
+                    vec.push(*byte as u8);
+                }
+                vec
+            };
+            env.delete_local_ref(obj)?;
+            return Ok(vec);
+        }
     }
 
     pub fn value_cast_big_decimal<'a>(
@@ -149,8 +158,23 @@ pub mod cast {
 
         Ok(BigDecimal::from(0))
     }
+    pub fn value_cast_input_stream<'a>(
+        env: &mut JNIEnv<'a>,
+        obj: JValueGen<JObject<'a>>,
+        vm: Arc<JavaVM>,
+    ) -> Result<InputStream, Error> {
+        let obj = {
+            match obj {
+                JValueGen::Object(obj) => obj,
+                _ => JObject::null(),
+            }
+        };
+        let obj = env.new_global_ref(obj)?;
+        Ok(InputStream::new(obj, vm))
+    }
 
     use crate::value_cast;
+    use crate::wrapper::io::InputStream;
     value_cast!(JValueGen::Byte, u8, value_cast_u8);
     value_cast!(JValueGen::Char, u16, value_cast_char);
     value_cast!(JValueGen::Bool, bool, value_cast_bool);

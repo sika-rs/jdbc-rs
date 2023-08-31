@@ -78,5 +78,5 @@ mvn dependency:copy-dependencies -DoutputDirectory=./libs
 - [x] byte[]
 - [x] BigDecimal
 - [ ] AsciiStream
-- [ ] BinaryStream
+- [x] BinaryStream
 - [ ] CharacterStream

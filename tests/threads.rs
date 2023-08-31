@@ -1,7 +1,9 @@
 #[cfg(not(feature = "async"))]
 #[test]
 pub fn test() -> Result<(), jdbc::errors::Error> {
-    let ds = util::sqlite();
+    use std::sync::Arc;
+
+    let ds = Arc::new(util::sqlite());
     let ds1 = ds.clone();
     let h1 = std::thread::spawn(move || {
         let conn = ds.get_connection();

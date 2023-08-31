@@ -7,7 +7,6 @@ use jni::{
 };
 use std::sync::Arc;
 
-#[derive(Clone)]
 pub struct Connection {
     inner: GlobalRef,
     vm: Arc<JavaVM>,

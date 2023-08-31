@@ -9,12 +9,13 @@ use jni::{
 
 use super::connection::Connection;
 
-#[derive(Clone)]
 pub struct DataSource {
     vm: Arc<JavaVM>,
     inner: GlobalRef,
     get_conn: JMethodID,
 }
+
+unsafe impl Send for DataSource {}
 
 impl DataSource {
     pub fn new(vm: Arc<JavaVM>, inner: GlobalRef) -> Result<Self, jni::errors::Error> {

@@ -24,11 +24,12 @@ bigdecimal = "0.4.1"
 chrono = "0.4.26"
 lazy_static = "1.4.0"
 tokio-test = "0.4.3"
+toml = "0.7.6"
 
 
 [features]
-default = []
+default = ["tokio", "chrono"]
 chrono = []
+async = []
 tokio = ["async"]
 async-std = ["async"]
-async = []

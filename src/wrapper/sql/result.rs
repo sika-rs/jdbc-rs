@@ -6,7 +6,7 @@ use jni::{
     AttachGuard, JNIEnv,
 };
 
-use crate::{errors::Error, util, Connection};
+use crate::{errors::Error, util, wrapper::io::InputStream, Connection};
 
 use super::ResultSetMetaData;
 
@@ -27,6 +27,7 @@ pub struct ResultSet<'local> {
     get_byte: (JMethodID, JMethodID),
     get_bytes: (JMethodID, JMethodID),
     get_big_decimal: (JMethodID, JMethodID),
+    get_binary_stream: (JMethodID, JMethodID),
     env: AttachGuard<'local>,
     conn: &'local Connection,
 }
@@ -84,9 +85,20 @@ impl<'local> ResultSet<'local> {
             "(Ljava/lang/String;)Ljava/math/BigDecimal;",
         )?;
 
-        let get_date = env.get_method_id(&class, "getDate", "(I)Ljava/sql/Date;")?;
-        let get_date_by_label =
-            env.get_method_id(&class, "getDate", "(Ljava/lang/String;)Ljava/sql/Date;")?;
+        let get_binary_stream =
+            env.get_method_id(&class, "getBinaryStream", "(I)Ljava/io/InputStream;")?;
+        let get_binary_stream_by_label = env.get_method_id(
+            &class,
+            "getBinaryStream",
+            "(Ljava/lang/String;)Ljava/io/InputStream;",
+        )?;
+
+        let get_date = env.get_method_id(&class, "getTimestamp", "(I)Ljava/sql/Timestamp;")?;
+        let get_date_by_label = env.get_method_id(
+            &class,
+            "getTimestamp",
+            "(Ljava/lang/String;)Ljava/sql/Timestamp;",
+        )?;
 
         Ok(ResultSet {
             inner: statement,
@@ -105,6 +117,7 @@ impl<'local> ResultSet<'local> {
             get_byte: (get_byte, get_byte_by_label),
             get_bytes: (get_bytes, get_bytes_by_label),
             get_big_decimal: (get_big_decimal, get_big_decimal_by_label),
+            get_binary_stream: (get_binary_stream, get_binary_stream_by_label),
             env,
             conn,
         })
@@ -298,6 +311,24 @@ impl<'local> ResultSet<'local> {
         })
     }
 
+    pub fn get_binary_stream(&self, index: i32) -> Result<Option<InputStream>, Error> {
+        let method = &self.get_binary_stream.0;
+        let r_type = ReturnType::Object;
+        let vm = self.conn.vm().clone();
+        self.use_index(method, index, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_input_stream(env, value, vm).map_err(Error::from);
+        })
+    }
+
+    pub fn get_binary_stream_by_label(&self, label: &str) -> Result<Option<InputStream>, Error> {
+        let method = &self.get_binary_stream.1;
+        let r_type = ReturnType::Object;
+        let vm = self.conn.vm().clone();
+        self.use_label(method, label, r_type, |env: &mut JNIEnv<'_>, value| {
+            return util::cast::value_cast_input_stream(env, value, vm).map_err(Error::from);
+        })
+    }
+
     pub fn get_timestamp_millis(&self, index: i32) -> Result<Option<i64>, Error> {
         let method = &self.get_date.0;
         let r_type = ReturnType::Object;
@@ -390,7 +421,7 @@ impl<'local> ResultSet<'local> {
         f: F,
     ) -> Result<Option<T>, Error>
     where
-        F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
+        F: FnOnce(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
     {
         let mut env = self.conn.env()?;
         // read value
@@ -414,7 +445,7 @@ impl<'local> ResultSet<'local> {
         f: F,
     ) -> Result<Option<T>, Error>
     where
-        F: Fn(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
+        F: FnOnce(&mut JNIEnv<'local>, JValueGen<JObject<'local>>) -> Result<T, Error>,
     {
         let mut env = self.conn.env()?;
 
